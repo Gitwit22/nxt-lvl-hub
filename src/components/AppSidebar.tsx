@@ -1,4 +1,4 @@
-import { Home, LayoutGrid, Info, Settings, Menu } from "lucide-react";
+import { Home, LayoutGrid, Info, Settings } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -25,19 +25,19 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarContent>
-        <div className="p-4 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm shrink-0">
+      <SidebarContent className="knurled">
+        <div className="p-4 flex items-center gap-3 border-b border-border">
+          <div className="w-8 h-8 rounded metal-raised flex items-center justify-center text-primary font-mono font-bold text-sm shrink-0">
             N
           </div>
           {!collapsed && (
-            <span className="font-semibold text-foreground text-sm tracking-tight">
-              Nxt Lvl Suites
+            <span className="font-mono font-semibold text-foreground text-xs tracking-wider uppercase">
+              NXT LVL
             </span>
           )}
         </div>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel className="stamped-label text-[9px]">Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => (
@@ -46,7 +46,7 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end={item.url === "/"}
-                      className="hover:bg-sidebar-accent/50"
+                      className="hover:bg-sidebar-accent/50 font-mono text-xs tracking-wide"
                       activeClassName="bg-sidebar-accent text-primary font-medium"
                     >
                       <item.icon className="mr-2 h-4 w-4" />

@@ -1,6 +1,6 @@
-import { Program, STATUS_CONFIG } from "@/types/program";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Program } from "@/types/program";
+import { Screw } from "@/components/Screw";
+import { StatusLED } from "@/components/StatusLED";
 import { ExternalLink, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -11,7 +11,6 @@ interface ProgramCardProps {
 
 export function ProgramCard({ program, compact }: ProgramCardProps) {
   const navigate = useNavigate();
-  const statusCfg = STATUS_CONFIG[program.status];
   const isLaunchable = program.status === "live" || program.status === "beta" || program.status === "internal";
 
   const handleLaunch = (e: React.MouseEvent) => {
@@ -27,43 +26,67 @@ export function ProgramCard({ program, compact }: ProgramCardProps) {
   return (
     <div
       onClick={() => navigate(`/applications/${program.id}`)}
-      className="glass-card rounded-xl p-5 cursor-pointer transition-all duration-300 hover:border-primary/30 hover:shadow-lg group"
-      style={program.accentColor ? { borderTopColor: `hsl(${program.accentColor})`, borderTopWidth: "2px" } : {}}
+      className="metal-panel rounded-lg p-5 cursor-pointer transition-all duration-200 hover:border-metal-edge group relative"
     >
-      <div className="flex items-start justify-between mb-3">
-        <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center text-primary font-bold text-lg shrink-0">
-          {program.name.charAt(0)}
+      {/* Corner screws */}
+      <Screw className="absolute top-2.5 left-2.5" />
+      <Screw className="absolute top-2.5 right-2.5" />
+      <Screw className="absolute bottom-2.5 left-2.5" />
+      <Screw className="absolute bottom-2.5 right-2.5" />
+
+      <div className="px-2">
+        {/* Header row */}
+        <div className="flex items-center justify-between mb-3 mt-1">
+          <div
+            className="w-9 h-9 rounded metal-raised flex items-center justify-center font-mono font-bold text-sm shrink-0"
+            style={program.accentColor ? { color: `hsl(${program.accentColor})` } : {}}
+          >
+            {program.name.charAt(0)}
+          </div>
+          <StatusLED status={program.status} />
         </div>
-        <Badge variant="outline" className={`text-xs ${statusCfg.className}`}>
-          {statusCfg.label}
-        </Badge>
-      </div>
-      <h3 className="font-semibold text-foreground mb-1 group-hover:text-primary transition-colors">
-        {program.name}
-      </h3>
-      {!compact && (
-        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{program.shortDescription}</p>
-      )}
-      <div className="flex items-center justify-between mt-auto pt-2">
-        <span className="text-xs text-muted-foreground">{program.category}</span>
-        {isLaunchable ? (
-          <Button size="sm" variant="ghost" className="text-primary text-xs h-7 px-2" onClick={handleLaunch}>
-            {program.launchLabel}
-            {program.type === "external" ? <ExternalLink className="ml-1 h-3 w-3" /> : <ArrowRight className="ml-1 h-3 w-3" />}
-          </Button>
-        ) : (
-          <span className="text-xs text-muted-foreground italic">{program.launchLabel}</span>
+
+        {/* Name */}
+        <h3 className="font-semibold text-foreground mb-1 group-hover:text-primary transition-colors text-sm">
+          {program.name}
+        </h3>
+
+        {!compact && (
+          <p className="text-xs text-muted-foreground mb-4 line-clamp-2 leading-relaxed">
+            {program.shortDescription}
+          </p>
+        )}
+
+        {/* Footer */}
+        <div className="flex items-center justify-between mt-auto pt-3 border-t border-border/30">
+          <span className="stamped-label text-[9px]">{program.category}</span>
+          {isLaunchable ? (
+            <button
+              onClick={handleLaunch}
+              className="metal-button rounded px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-foreground hover:text-primary transition-colors flex items-center gap-1"
+            >
+              {program.type === "external" ? (
+                <>Launch <ExternalLink className="h-2.5 w-2.5" /></>
+              ) : (
+                <>Launch <ArrowRight className="h-2.5 w-2.5" /></>
+              )}
+            </button>
+          ) : (
+            <span className="stamped-label text-[9px] italic">{program.launchLabel}</span>
+          )}
+        </div>
+
+        {/* Tags */}
+        {!compact && program.tags.length > 0 && (
+          <div className="flex gap-1 mt-3 flex-wrap">
+            {program.tags.slice(0, 3).map((tag) => (
+              <span key={tag} className="text-[9px] px-2 py-0.5 rounded font-mono uppercase tracking-wide bg-secondary text-muted-foreground border border-border/50">
+                {tag}
+              </span>
+            ))}
+          </div>
         )}
       </div>
-      {!compact && program.tags.length > 0 && (
-        <div className="flex gap-1 mt-3 flex-wrap">
-          {program.tags.slice(0, 3).map((tag) => (
-            <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">
-              {tag}
-            </span>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
