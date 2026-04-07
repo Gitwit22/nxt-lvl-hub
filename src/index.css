@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Roboto+Mono:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,58 +6,61 @@
 
 @layer base {
   :root {
-    --background: 222 47% 7%;
-    --foreground: 210 40% 96%;
+    --background: 220 10% 13%;
+    --foreground: 210 20% 88%;
 
-    --card: 222 41% 10%;
-    --card-foreground: 210 40% 96%;
+    --card: 220 10% 16%;
+    --card-foreground: 210 20% 88%;
 
-    --popover: 222 41% 10%;
-    --popover-foreground: 210 40% 96%;
+    --popover: 220 10% 16%;
+    --popover-foreground: 210 20% 88%;
 
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 7%;
+    --primary: 217 80% 56%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 222 35% 16%;
-    --secondary-foreground: 210 40% 96%;
+    --secondary: 220 10% 20%;
+    --secondary-foreground: 210 20% 80%;
 
-    --muted: 222 30% 14%;
-    --muted-foreground: 215 20% 55%;
+    --muted: 220 8% 22%;
+    --muted-foreground: 215 12% 55%;
 
-    --accent: 217 91% 60%;
-    --accent-foreground: 222 47% 7%;
+    --accent: 217 80% 56%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 222 30% 18%;
-    --input: 222 30% 18%;
-    --ring: 217 91% 60%;
+    --border: 220 10% 24%;
+    --input: 220 10% 20%;
+    --ring: 217 80% 56%;
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
 
-    --sidebar-background: 222 47% 5%;
-    --sidebar-foreground: 215 20% 65%;
-    --sidebar-primary: 217 91% 60%;
+    --sidebar-background: 220 10% 10%;
+    --sidebar-foreground: 215 12% 55%;
+    --sidebar-primary: 217 80% 56%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 35% 12%;
-    --sidebar-accent-foreground: 210 40% 96%;
-    --sidebar-border: 222 30% 14%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-accent: 220 10% 15%;
+    --sidebar-accent-foreground: 210 20% 88%;
+    --sidebar-border: 220 10% 18%;
+    --sidebar-ring: 217 80% 56%;
 
-    --success: 142 71% 45%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 0%;
-    --info: 199 89% 48%;
-    --info-foreground: 0 0% 100%;
+    /* Skeuomorphic tokens */
+    --led-live: 142 71% 45%;
+    --led-beta: 38 92% 50%;
+    --led-coming: 280 60% 50%;
+    --led-internal: 217 80% 56%;
+    --led-archived: 0 0% 40%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%), hsl(199 89% 48%));
-    --gradient-card: linear-gradient(135deg, hsl(222 41% 10%), hsl(222 35% 13%));
-    --gradient-hero: linear-gradient(135deg, hsl(222 47% 7%) 0%, hsl(222 41% 12%) 50%, hsl(222 47% 7%) 100%);
+    --metal-light: 220 8% 28%;
+    --metal-mid: 220 10% 18%;
+    --metal-dark: 220 10% 12%;
+    --metal-edge: 220 8% 30%;
 
-    --shadow-glow: 0 0 40px -10px hsl(217 91% 60% / 0.3);
-    --shadow-card: 0 4px 24px -4px hsl(0 0% 0% / 0.3);
+    --shadow-recessed: inset 0 2px 8px hsl(0 0% 0% / 0.5), inset 0 1px 2px hsl(0 0% 0% / 0.3);
+    --shadow-raised: 0 2px 4px hsl(0 0% 0% / 0.4), 0 1px 2px hsl(0 0% 0% / 0.2), inset 0 1px 0 hsl(0 0% 100% / 0.06);
+    --shadow-pressed: inset 0 2px 4px hsl(0 0% 0% / 0.4), inset 0 1px 2px hsl(0 0% 0% / 0.2);
+    --shadow-deep-recess: inset 0 3px 12px hsl(0 0% 0% / 0.6), inset 0 1px 3px hsl(0 0% 0% / 0.4);
   }
 }
 
@@ -67,33 +70,164 @@
   }
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    background-image: 
+      repeating-linear-gradient(
+        90deg,
+        hsl(220 10% 14%) 0px,
+        hsl(220 10% 13%) 1px,
+        transparent 1px,
+        transparent 3px
+      ),
+      repeating-linear-gradient(
+        0deg,
+        hsl(220 10% 14%) 0px,
+        hsl(220 10% 13%) 1px,
+        transparent 1px,
+        transparent 3px
+      );
   }
 }
 
 @layer utilities {
-  .glass-card {
-    @apply bg-card/80 backdrop-blur-xl border border-border/50 shadow-lg;
+  /* Recessed metal panel */
+  .metal-panel {
+    @apply bg-card border border-border rounded-lg;
+    box-shadow: var(--shadow-recessed);
+    background-image: linear-gradient(
+      180deg,
+      hsl(220 10% 14%) 0%,
+      hsl(220 10% 17%) 50%,
+      hsl(220 10% 15%) 100%
+    );
   }
+
+  /* Raised metal surface */
+  .metal-raised {
+    @apply bg-card border border-border rounded-lg;
+    box-shadow: var(--shadow-raised);
+    background-image: linear-gradient(
+      180deg,
+      hsl(220 10% 22%) 0%,
+      hsl(220 10% 18%) 100%
+    );
+    border-top-color: hsl(220 8% 30%);
+    border-bottom-color: hsl(220 10% 12%);
+  }
+
+  /* Machined button surface */
+  .metal-button {
+    background-image: linear-gradient(
+      180deg,
+      hsl(220 10% 28%) 0%,
+      hsl(220 10% 20%) 100%
+    );
+    box-shadow: var(--shadow-raised);
+    border: 1px solid hsl(220 8% 30%);
+    border-bottom-color: hsl(220 10% 12%);
+  }
+
+  .metal-button:hover {
+    background-image: linear-gradient(
+      180deg,
+      hsl(220 10% 32%) 0%,
+      hsl(220 10% 24%) 100%
+    );
+  }
+
+  .metal-button:active, .metal-button-pressed {
+    background-image: linear-gradient(
+      180deg,
+      hsl(220 10% 18%) 0%,
+      hsl(220 10% 20%) 100%
+    );
+    box-shadow: var(--shadow-pressed);
+    border-top-color: hsl(220 10% 12%);
+    border-bottom-color: hsl(220 8% 24%);
+  }
+
+  /* LED glow */
+  .led {
+    @apply w-2.5 h-2.5 rounded-full;
+    box-shadow: 0 0 6px 1px currentColor, inset 0 -1px 2px hsl(0 0% 0% / 0.3);
+  }
+
+  .led-live {
+    background-color: hsl(var(--led-live));
+    color: hsl(var(--led-live));
+    box-shadow: 0 0 8px 2px hsl(var(--led-live) / 0.6), 0 0 16px 4px hsl(var(--led-live) / 0.2), inset 0 -1px 2px hsl(0 0% 0% / 0.3);
+  }
+
+  .led-beta {
+    background-color: hsl(var(--led-beta));
+    color: hsl(var(--led-beta));
+    box-shadow: 0 0 8px 2px hsl(var(--led-beta) / 0.6), 0 0 16px 4px hsl(var(--led-beta) / 0.2), inset 0 -1px 2px hsl(0 0% 0% / 0.3);
+  }
+
+  .led-coming {
+    background-color: hsl(var(--led-coming));
+    color: hsl(var(--led-coming));
+    box-shadow: 0 0 8px 2px hsl(var(--led-coming) / 0.6), 0 0 16px 4px hsl(var(--led-coming) / 0.2), inset 0 -1px 2px hsl(0 0% 0% / 0.3);
+  }
+
+  .led-internal {
+    background-color: hsl(var(--led-internal));
+    color: hsl(var(--led-internal));
+    box-shadow: 0 0 8px 2px hsl(var(--led-internal) / 0.6), 0 0 16px 4px hsl(var(--led-internal) / 0.2), inset 0 -1px 2px hsl(0 0% 0% / 0.3);
+  }
+
+  .led-archived {
+    background-color: hsl(var(--led-archived));
+    color: hsl(var(--led-archived));
+    box-shadow: 0 0 4px 1px hsl(var(--led-archived) / 0.3), inset 0 -1px 2px hsl(0 0% 0% / 0.3);
+  }
+
+  /* Stamped label text */
+  .stamped-label {
+    @apply font-mono uppercase tracking-widest text-muted-foreground;
+    text-shadow: 0 1px 0 hsl(0 0% 0% / 0.5), 0 -1px 0 hsl(0 0% 100% / 0.05);
+  }
+
+  /* Gradient text for hero */
   .gradient-text {
     @apply bg-clip-text text-transparent;
-    background-image: var(--gradient-primary);
+    background-image: linear-gradient(135deg, hsl(217 80% 56%), hsl(199 89% 48%));
   }
-  .glow {
-    box-shadow: var(--shadow-glow);
+
+  /* Screw head */
+  .screw {
+    @apply w-3 h-3 rounded-full flex-shrink-0;
+    background: radial-gradient(circle at 35% 35%, hsl(220 8% 38%), hsl(220 10% 18%) 70%);
+    box-shadow: inset 0 1px 2px hsl(0 0% 0% / 0.5), 0 1px 0 hsl(0 0% 100% / 0.05);
   }
+
+  .screw::after {
+    content: '';
+    display: block;
+    width: 60%;
+    height: 1px;
+    margin: 45% auto 0;
+    background: hsl(0 0% 0% / 0.4);
+    box-shadow: 0 1px 0 hsl(0 0% 100% / 0.1);
+  }
+
+  /* Knurled grip texture on sidebar */
+  .knurled {
+    background-image: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      hsl(0 0% 100% / 0.03) 2px,
+      hsl(0 0% 100% / 0.03) 3px
+    );
+  }
+}
+
+@keyframes led-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
 
 @keyframes fade-in-up {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 20px -5px hsl(217 91% 60% / 0.2); }
-  50% { box-shadow: 0 0 30px -5px hsl(217 91% 60% / 0.4); }
-}
-
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
 }
