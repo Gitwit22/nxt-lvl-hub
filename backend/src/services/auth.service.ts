@@ -23,6 +23,11 @@ export const REFRESH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
 const DUMMY_HASH = "$2b$12$invalidhashXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
 
 export class AuthService {
+  async hasPlatformAdmin(partition: string): Promise<boolean> {
+    const users = await authUserRepository.list(partition);
+    return users.some((u) => u.isPlatformAdmin && !u.deletedAt);
+  }
+
   async register(input: AuthUserInput): Promise<AuthUserRecord> {
     const partition = env.appPartitionDefault;
     const email = input.email.trim().toLowerCase();
@@ -30,6 +35,13 @@ export class AuthService {
     const existing = await authUserRepository.findByEmail(partition, email);
     if (existing && !existing.deletedAt) {
       throw new AppError("An account with that email already exists.", 409);
+    }
+
+    if (input.isPlatformAdmin) {
+      const adminAlreadyExists = await this.hasPlatformAdmin(partition);
+      if (adminAlreadyExists) {
+        throw new AppError("Platform admin has already been initialized.", 403);
+      }
     }
 
     const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
@@ -116,6 +128,42 @@ export class AuthService {
       isPlatformAdmin: user.isPlatformAdmin,
       orgMemberships,
     };
+  }
+
+  async bootstrapPlatformAdmin(authUserId: string, partition: string, setupToken: string) {
+    if (!env.platformSetupToken || env.platformSetupToken.length === 0) {
+      throw new AppError("Platform setup token is not configured.", 403);
+    }
+
+    if (setupToken !== env.platformSetupToken) {
+      throw new AppError("Invalid platform setup token.", 403);
+    }
+
+    const requester = await authUserRepository.findById(partition, authUserId);
+    if (!requester || requester.deletedAt) {
+      throw new AppError("Account not found.", 401);
+    }
+
+    if (requester.isPlatformAdmin) {
+      return requester;
+    }
+
+    const adminAlreadyExists = await this.hasPlatformAdmin(partition);
+    if (adminAlreadyExists) {
+      throw new AppError("Platform admin has already been initialized.", 403);
+    }
+
+    const updated = await authUserRepository.update(partition, authUserId, (u) => ({
+      ...u,
+      isPlatformAdmin: true,
+      updatedAt: new Date().toISOString(),
+    }));
+
+    if (!updated) {
+      throw new AppError("Account not found.", 401);
+    }
+
+    return updated;
   }
 
   issueTokens(user: AuthUserRecord, partition: string): { tokens: AuthTokens; refreshToken: string } {

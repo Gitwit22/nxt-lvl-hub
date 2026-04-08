@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
+  bootstrapAdminApi,
   type AuthTokenResponse,
   type MeResponse,
   getAccessToken,
@@ -21,6 +22,7 @@ interface AuthContextType {
   isPlatformAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, setupToken?: string) => Promise<void>;
+  bootstrapAdmin: (setupToken: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
 }
@@ -116,6 +118,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const bootstrapAdmin = useCallback(
+    async (setupToken: string) => {
+      const tokens = await bootstrapAdminApi(setupToken);
+      await handleAuthSuccess(tokens);
+    },
+    [handleAuthSuccess],
+  );
+
   const refreshMe = useCallback(async () => {
     if (!getAccessToken()) return;
     const profile = await meApi();
@@ -131,6 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isPlatformAdmin: me?.isPlatformAdmin ?? false,
     login,
     register,
+    bootstrapAdmin,
     logout,
     refreshMe,
   };

@@ -143,6 +143,13 @@ export async function meApi(): Promise<MeResponse> {
   return apiRequest<MeResponse>("/api/auth/me");
 }
 
+export async function bootstrapAdminApi(setupToken: string): Promise<AuthTokenResponse> {
+  return apiRequest<AuthTokenResponse>("/api/auth/bootstrap-admin", {
+    method: "POST",
+    body: JSON.stringify({ setupToken }),
+  });
+}
+
 export function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
     return error.message;

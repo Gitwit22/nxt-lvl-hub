@@ -67,3 +67,18 @@ export async function me(request: Request, response: Response) {
   const profile = await authService.getMe(authUser.id, authUser.partition);
   return sendSuccess(response, profile, "Profile retrieved.");
 }
+
+export async function bootstrapAdmin(request: Request, response: Response) {
+  const authUser = request.authUser!;
+  const { setupToken } = request.body as { setupToken: string };
+
+  const upgraded = await authService.bootstrapPlatformAdmin(
+    authUser.id,
+    authUser.partition,
+    setupToken,
+  );
+
+  const { tokens, refreshToken } = authService.issueTokens(upgraded, authUser.partition);
+  setRefreshCookie(response, refreshToken);
+  return sendSuccess(response, tokens, "Platform admin access granted.");
+}

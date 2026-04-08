@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { organizationService } from "../services/organization.service.js";
+import { orgUserRepository } from "../database/repositories.js";
 import { sendSuccess } from "../utils/response.js";
 import { getRequestPartition } from "../utils/partition.js";
 
@@ -9,6 +10,7 @@ function getRouteId(value: string | string[] | undefined) {
 
 export async function listOrganizations(request: Request, response: Response) {
   const partitionKey = getRequestPartition(request);
+  const authUser = request.authUser!;
 
   const organizations = await organizationService.list(partitionKey, {
     search: typeof request.query.search === "string" ? request.query.search : undefined,
@@ -17,7 +19,17 @@ export async function listOrganizations(request: Request, response: Response) {
     tags: Array.isArray(request.query.tags) ? (request.query.tags as string[]) : undefined,
   });
 
-  return sendSuccess(response, organizations, "Organizations retrieved.");
+  if (authUser.isPlatformAdmin) {
+    return sendSuccess(response, organizations, "Organizations retrieved.");
+  }
+
+  const memberships = await orgUserRepository.listByAuthUserId(partitionKey, authUser.id);
+  const visibleOrgIds = new Set(
+    memberships.filter((m) => m.active && !m.deletedAt).map((m) => m.orgId),
+  );
+  const filtered = organizations.filter((org) => visibleOrgIds.has(org.id));
+
+  return sendSuccess(response, filtered, "Organizations retrieved.");
 }
 
 export async function getOrganization(request: Request, response: Response) {

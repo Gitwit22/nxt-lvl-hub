@@ -14,3 +14,9 @@ export const registerSchema = z.object({
     setupToken: z.string().optional(),
   }),
 });
+
+export const bootstrapAdminSchema = z.object({
+  body: z.object({
+    setupToken: z.string().min(1, "Setup token is required."),
+  }),
+});

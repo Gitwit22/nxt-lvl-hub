@@ -41,7 +41,13 @@ organizationRouter.post("/orgs", platformAdminMiddleware, validateRequest(create
 organizationRouter.put("/orgs/:orgId", orgAccessMiddleware, roleCheckMiddleware(["super_admin", "org_admin"]), validateRequest(updateOrganizationSchema), asyncHandler(updateOrganization));
 organizationRouter.delete("/orgs/:orgId", platformAdminMiddleware, asyncHandler(deleteOrganization));
 
-organizationRouter.get("/orgs/:orgId/users", orgAccessMiddleware, validateRequest(listOrgUsersSchema), asyncHandler(listOrgUsers));
+organizationRouter.get(
+  "/orgs/:orgId/users",
+  orgAccessMiddleware,
+  roleCheckMiddleware(["super_admin", "org_admin"]),
+  validateRequest(listOrgUsersSchema),
+  asyncHandler(listOrgUsers),
+);
 organizationRouter.post(
   "/orgs/:orgId/users",
   orgAccessMiddleware,
