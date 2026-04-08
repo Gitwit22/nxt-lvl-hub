@@ -11,6 +11,7 @@ type ApiEnvelope<T> = {
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 const APP_PARTITION = (import.meta.env.VITE_APP_PARTITION || "nxt-lvl-hub").trim().toLowerCase();
+const REQUEST_TIMEOUT_MS = 12000;
 
 // ─── Access-token store ───────────────────────────────────────────────────────
 let _accessToken: string | null = null;
@@ -28,10 +29,24 @@ export function setAuthErrorCallback(cb: () => void) {
   _authErrorCallback = cb;
 }
 
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs = REQUEST_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ─── Low-level refresh (avoids circular dependency with apiRequest) ───────────
 async function doRefresh(): Promise<{ accessToken: string; expiresIn: number } | null> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/api/auth/refresh`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json", "x-app-partition": APP_PARTITION },
@@ -60,7 +75,7 @@ async function apiRequest<T>(path: string, init: RequestInit = {}, _retry = true
     headers["Authorization"] = `Bearer ${_accessToken}`;
   }
 
-  const response = await fetch(toApiUrl(path), {
+  const response = await fetchWithTimeout(toApiUrl(path), {
     ...init,
     credentials: "include",
     headers,
