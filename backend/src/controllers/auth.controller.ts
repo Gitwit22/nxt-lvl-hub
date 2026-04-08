@@ -1,3 +1,4 @@
+/// <reference path="../types/express.d.ts" />
 import type { Request, Response } from "express";
 import { authService, REFRESH_COOKIE_MAX_AGE, REFRESH_COOKIE_NAME } from "../services/auth.service.js";
 import { sendSuccess } from "../utils/response.js";
