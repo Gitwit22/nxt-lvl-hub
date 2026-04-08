@@ -1,5 +1,10 @@
 import { Router } from "express";
 import {
+  createOrgUser,
+  listOrgUsers,
+  updateOrgUser,
+} from "../controllers/org-user.controller.js";
+import {
   createOrganization,
   deleteOrganization,
   getOrganization,
@@ -16,6 +21,11 @@ import {
   listOrganizationsSchema,
   updateOrganizationSchema,
 } from "../validators/organization.validators.js";
+import {
+  createOrgUserSchema,
+  listOrgUsersSchema,
+  updateOrgUserSchema,
+} from "../validators/org-user.validators.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
 export const organizationRouter = Router();
@@ -28,3 +38,17 @@ organizationRouter.get("/orgs/:id", orgAccessMiddleware, asyncHandler(getOrganiz
 organizationRouter.post("/orgs", roleCheckMiddleware(["owner", "admin"]), validateRequest(createOrganizationSchema), asyncHandler(createOrganization));
 organizationRouter.put("/orgs/:id", orgAccessMiddleware, validateRequest(updateOrganizationSchema), asyncHandler(updateOrganization));
 organizationRouter.delete("/orgs/:id", orgAccessMiddleware, asyncHandler(deleteOrganization));
+
+organizationRouter.get("/orgs/:orgId/users", orgAccessMiddleware, validateRequest(listOrgUsersSchema), asyncHandler(listOrgUsers));
+organizationRouter.post(
+  "/orgs/:orgId/users",
+  orgAccessMiddleware,
+  validateRequest(createOrgUserSchema),
+  asyncHandler(createOrgUser),
+);
+organizationRouter.put(
+  "/orgs/:orgId/users/:userId",
+  orgAccessMiddleware,
+  validateRequest(updateOrgUserSchema),
+  asyncHandler(updateOrgUser),
+);

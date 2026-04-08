@@ -10,6 +10,7 @@ export const env = {
   uploadPath: normalizePath(process.env.UPLOAD_PATH || "backend/uploads"),
   corsOrigin: process.env.CORS_ORIGIN || "http://localhost:8080",
   dataFilePath: path.resolve(process.cwd(), "backend/database/app-data.json"),
+  appPartitionDefault: (process.env.APP_PARTITION_DEFAULT || "nxt-lvl-hub").trim().toLowerCase(),
 };
 
 export function getAllowedOrigins() {

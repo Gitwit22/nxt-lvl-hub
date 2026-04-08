@@ -20,8 +20,11 @@ export interface Organization {
   id: string;
   name: string;
   slug: string;
+  description?: string;
   subdomain: string;
   contactEmail: string;
+  ownerEmail: string;
+  ownerUserId?: string | null;
   logo: string;
   logoUrl?: string;
   bannerUrl?: string;
@@ -41,6 +44,7 @@ export interface Organization {
   assignedProgramIds: string[];
   assignedBundleIds: string[];
   announcements: Announcement[];
+  tags?: string[];
 }
 
 export interface PortalUser {

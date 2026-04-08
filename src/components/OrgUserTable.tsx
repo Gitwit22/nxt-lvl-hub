@@ -7,12 +7,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/api";
 
 interface OrgUserTableProps {
   users: PortalUser[];
   programs: SuiteProgram[];
   canManage: boolean;
-  onUpdateUser: (userId: string, updates: Partial<PortalUser>) => void;
+  onUpdateUser: (userId: string, updates: Partial<PortalUser>) => Promise<void>;
 }
 
 const roleOptions: OrgRole[] = ["Super Admin", "Org Admin", "Manager", "Staff"];
@@ -29,7 +31,7 @@ export function OrgUserTable({ users, programs, canManage, onUpdateUser }: OrgUs
 
   const closeDialog = () => setEditingUser(null);
 
-  const toggleProgramAccess = (programId: string, checked: boolean) => {
+  const toggleProgramAccess = async (programId: string, checked: boolean) => {
     if (!editingUser) return;
 
     const current = new Set(editingUser.assignedProgramIds);
@@ -40,8 +42,12 @@ export function OrgUserTable({ users, programs, canManage, onUpdateUser }: OrgUs
     }
 
     const assignedProgramIds = Array.from(current);
-    onUpdateUser(editingUser.id, { assignedProgramIds });
-    setEditingUser({ ...editingUser, assignedProgramIds });
+    try {
+      await onUpdateUser(editingUser.id, { assignedProgramIds });
+      setEditingUser({ ...editingUser, assignedProgramIds });
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
   };
 
   return (
@@ -68,7 +74,11 @@ export function OrgUserTable({ users, programs, canManage, onUpdateUser }: OrgUs
                   <Select
                     value={user.role}
                     disabled={!canManage}
-                    onValueChange={(value) => onUpdateUser(user.id, { role: value as OrgRole })}
+                    onValueChange={(value) => {
+                      void onUpdateUser(user.id, { role: value as OrgRole }).catch((error) => {
+                        toast.error(getErrorMessage(error));
+                      });
+                    }}
                   >
                     <SelectTrigger className="w-[140px]">
                       <SelectValue />
@@ -87,7 +97,11 @@ export function OrgUserTable({ users, programs, canManage, onUpdateUser }: OrgUs
                     <Switch
                       checked={user.active}
                       disabled={!canManage}
-                      onCheckedChange={(active) => onUpdateUser(user.id, { active })}
+                      onCheckedChange={(active) => {
+                        void onUpdateUser(user.id, { active }).catch((error) => {
+                          toast.error(getErrorMessage(error));
+                        });
+                      }}
                     />
                     <Badge variant={user.active ? "secondary" : "outline"}>{user.active ? "Active" : "Inactive"}</Badge>
                   </div>
@@ -128,7 +142,12 @@ export function OrgUserTable({ users, programs, canManage, onUpdateUser }: OrgUs
                   const checked = editingUser.assignedProgramIds.includes(program.id);
                   return (
                     <label key={program.id} className="flex items-center gap-3">
-                      <Checkbox checked={checked} onCheckedChange={(state) => toggleProgramAccess(program.id, Boolean(state))} />
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(state) => {
+                          void toggleProgramAccess(program.id, Boolean(state));
+                        }}
+                      />
                       <div>
                         <p className="text-sm font-medium">{program.name}</p>
                         <p className="text-xs text-muted-foreground">{program.description}</p>

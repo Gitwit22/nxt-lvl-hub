@@ -1,7 +1,9 @@
 export const programStatuses = ["live", "beta", "coming-soon", "internal", "archived"] as const;
-export const programOrigins = ["internal", "external"] as const;
+export const programTypes = ["internal", "external"] as const;
+export const programOrigins = ["suite-native", "external-partner"] as const;
 
 export type ProgramStatus = (typeof programStatuses)[number];
+export type ProgramType = (typeof programTypes)[number];
 export type ProgramOrigin = (typeof programOrigins)[number];
 
 export interface ProgramRecord {
@@ -15,13 +17,18 @@ export interface ProgramRecord {
   status: ProgramStatus;
   tags: string[];
   logoUrl: string | null;
-  internalOrExternal: ProgramOrigin;
+  screenshotUrl: string | null;
+  type: ProgramType;
+  origin: ProgramOrigin;
   internalRoute: string | null;
   externalUrl: string | null;
-  featured: boolean;
+  openInNewTab: boolean;
+  isFeatured: boolean;
+  isPublic: boolean;
+  requiresLogin: boolean;
+  requiresApproval: boolean;
   displayOrder: number;
-  loginRequired: boolean;
-  launchButtonLabel: string;
+  launchLabel: string;
   notes: string;
   accentColor: string | null;
   createdAt: string;
@@ -38,4 +45,8 @@ export interface ProgramFilters {
   organizationId?: string;
 }
 
-export type ProgramInput = Omit<ProgramRecord, "id" | "slug" | "createdAt" | "updatedAt" | "deletedAt">;
+export type ProgramInput = Omit<ProgramRecord, "id" | "slug" | "createdAt" | "updatedAt" | "deletedAt"> & {
+  id?: string;
+  slug?: string;
+};
+

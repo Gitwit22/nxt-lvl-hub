@@ -102,7 +102,7 @@ export default function ApplicationsPage() {
             <>
               <p className="stamped-label text-xs">No programs added yet.</p>
               <p className="text-xs text-muted-foreground mt-2 font-mono">Create your first program to start building the suite.</p>
-              <Button size="sm" className="mt-5" onClick={() => navigate("/admin")}>
+              <Button size="sm" className="mt-5" onClick={() => navigate("/admin/programs")}>
                 Open Program Manager
               </Button>
             </>

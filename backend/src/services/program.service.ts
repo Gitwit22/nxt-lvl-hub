@@ -6,8 +6,8 @@ import { uniqueSlug } from "../utils/slug.js";
 import { AppError } from "../utils/app-error.js";
 
 export class ProgramService {
-  async list(filters: ProgramFilters) {
-    const programs = await programRepository.list();
+  async list(partitionKey: string, filters: ProgramFilters) {
+    const programs = await programRepository.list(partitionKey);
 
     return programs
       .filter((program) => !program.deletedAt)
@@ -24,7 +24,7 @@ export class ProgramService {
           return false;
         }
 
-        if (filters.featured !== undefined && program.featured !== filters.featured) {
+        if (filters.featured !== undefined && program.isFeatured !== filters.featured) {
           return false;
         }
 
@@ -48,8 +48,8 @@ export class ProgramService {
       .sort((left, right) => left.displayOrder - right.displayOrder || left.name.localeCompare(right.name));
   }
 
-  async getById(id: string) {
-    const program = await programRepository.findById(id);
+  async getById(partitionKey: string, id: string) {
+    const program = await programRepository.findById(partitionKey, id);
 
     if (!program || program.deletedAt) {
       throw new AppError("Program not found.", 404);
@@ -58,26 +58,31 @@ export class ProgramService {
     return program;
   }
 
-  async create(payload: ProgramInput) {
+  async create(partitionKey: string, payload: ProgramInput) {
     const data = programInputSchema.parse(payload);
-    const existingPrograms = (await programRepository.list()).filter((program) => !program.deletedAt);
+    const existingPrograms = (await programRepository.list(partitionKey)).filter((program) => !program.deletedAt);
     const now = new Date().toISOString();
 
     const program: ProgramRecord = {
-      id: crypto.randomUUID(),
-      slug: uniqueSlug(data.name, existingPrograms.map((program) => program.slug)),
+      id: data.id || crypto.randomUUID(),
+      slug: data.slug || uniqueSlug(data.name, existingPrograms.map((entry) => entry.slug)),
       createdAt: now,
       updatedAt: now,
       deletedAt: null,
       ...data,
       organizationId: data.organizationId || null,
+      logoUrl: data.logoUrl || null,
+      screenshotUrl: data.screenshotUrl || null,
+      internalRoute: data.internalRoute || null,
+      externalUrl: data.externalUrl || null,
+      accentColor: data.accentColor || null,
     };
 
-    return programRepository.create(program);
+    return programRepository.create(partitionKey, program);
   }
 
-  async update(id: string, payload: Partial<ProgramInput>) {
-    const current = await this.getById(id);
+  async update(partitionKey: string, id: string, payload: Partial<ProgramInput>) {
+    const current = await this.getById(partitionKey, id);
     const merged = {
       ...current,
       ...payload,
@@ -85,6 +90,8 @@ export class ProgramService {
     };
 
     const validated = programInputSchema.parse({
+      id: current.id,
+      slug: current.slug,
       organizationId: merged.organizationId || null,
       name: merged.name,
       shortDescription: merged.shortDescription,
@@ -93,25 +100,35 @@ export class ProgramService {
       status: merged.status,
       tags: merged.tags,
       logoUrl: merged.logoUrl,
-      internalOrExternal: merged.internalOrExternal,
+      screenshotUrl: merged.screenshotUrl,
+      type: merged.type,
+      origin: merged.origin,
       internalRoute: merged.internalRoute,
       externalUrl: merged.externalUrl,
-      featured: merged.featured,
+      openInNewTab: merged.openInNewTab,
+      isFeatured: merged.isFeatured,
+      isPublic: merged.isPublic,
+      requiresLogin: merged.requiresLogin,
+      requiresApproval: merged.requiresApproval,
       displayOrder: merged.displayOrder,
-      loginRequired: merged.loginRequired,
-      launchButtonLabel: merged.launchButtonLabel,
+      launchLabel: merged.launchLabel,
       notes: merged.notes,
       accentColor: merged.accentColor,
     });
 
-    const allPrograms = await programRepository.list();
-    const existingSlugs = allPrograms.filter((program) => program.id !== id && !program.deletedAt).map((program) => program.slug);
+    const allPrograms = await programRepository.list(partitionKey);
+    const existingSlugs = allPrograms.filter((entry) => entry.id !== id && !entry.deletedAt).map((entry) => entry.slug);
     const slug = validated.name === current.name ? current.slug : uniqueSlug(validated.name, existingSlugs);
 
-    const updated = await programRepository.update(id, (program) => ({
+    const updated = await programRepository.update(partitionKey, id, (program) => ({
       ...program,
       ...validated,
       organizationId: validated.organizationId || null,
+      logoUrl: validated.logoUrl || null,
+      screenshotUrl: validated.screenshotUrl || null,
+      internalRoute: validated.internalRoute || null,
+      externalUrl: validated.externalUrl || null,
+      accentColor: validated.accentColor || null,
       slug,
       updatedAt: new Date().toISOString(),
     }));
@@ -123,10 +140,10 @@ export class ProgramService {
     return updated;
   }
 
-  async remove(id: string) {
-    const current = await this.getById(id);
+  async remove(partitionKey: string, id: string) {
+    const current = await this.getById(partitionKey, id);
 
-    const updated = await programRepository.update(id, (program) => ({
+    const updated = await programRepository.update(partitionKey, id, (program) => ({
       ...program,
       deletedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

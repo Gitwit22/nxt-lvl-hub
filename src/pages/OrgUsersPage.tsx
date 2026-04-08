@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/api";
 
 const defaultInviteRole: OrgRole = "Staff";
 
@@ -37,22 +39,42 @@ export default function OrgUsersPage() {
   const currentUser = users.find((user) => user.id === activeUserByOrg[org.id]) ?? users[0];
   const canManage = currentUser ? canManageUsers(currentUser.role) : false;
 
-  const submitInvite = (event: FormEvent<HTMLFormElement>) => {
+  const submitInvite = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canManage || !name.trim() || !email.trim()) return;
 
-    inviteUser({
-      orgId: org.id,
-      name,
-      email,
-      role,
-      assignedProgramIds: selectedProgramIds,
-    });
+    const normalizedEmail = email.trim().toLowerCase();
+    const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail);
 
-    setName("");
-    setEmail("");
-    setRole(defaultInviteRole);
-    setSelectedProgramIds([]);
+    if (!isValidEmail) {
+      toast.error("Enter a valid email address.");
+      return;
+    }
+
+    const duplicateUser = users.some((user) => user.email.toLowerCase() === normalizedEmail);
+    if (duplicateUser) {
+      toast.error("A user with that email already exists in this organization.");
+      return;
+    }
+
+    try {
+      await inviteUser({
+        orgId: org.id,
+        name,
+        email: normalizedEmail,
+        role,
+        assignedProgramIds: selectedProgramIds,
+      });
+
+      toast.success("Invite created.");
+
+      setName("");
+      setEmail("");
+      setRole(defaultInviteRole);
+      setSelectedProgramIds([]);
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
   };
 
   const toggleSelectedProgram = (programId: string, checked: boolean) => {

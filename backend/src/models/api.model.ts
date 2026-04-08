@@ -9,4 +9,6 @@ export interface DatabaseStatus {
   mode: "file-json";
   databaseUrlConfigured: boolean;
   storagePath: string;
+  partitionCount: number;
+  defaultPartition: string;
 }

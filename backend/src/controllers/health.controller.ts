@@ -4,11 +4,12 @@ import { sendSuccess } from "../utils/response.js";
 
 export async function getHealth(_request: Request, response: Response) {
   await jsonStore.initialize();
+  const state = await jsonStore.read();
 
   return sendSuccess(
     response,
     {
-      status: jsonStore.getStatus(),
+      status: jsonStore.getStatus(state),
     },
     "Backend running",
   );

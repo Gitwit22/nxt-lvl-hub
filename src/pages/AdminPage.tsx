@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePrograms } from "@/context/ProgramContext";
 import { useOrgPortal } from "@/context/OrgPortalContext";
+import { getErrorMessage, uploadLogoFile } from "@/lib/api";
 import { Bundle, Organization, OrganizationStatus, PlanType, SuiteProgram } from "@/types/orgPortal";
 import { Program, CATEGORIES, ProgramStatus, ProgramType, ProgramOrigin } from "@/types/program";
 import { getOrgBasePath, getOrgPortalFallbackUrl, getOrgPortalUrl } from "@/lib/orgRoutes";
@@ -19,13 +20,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { ProgramLogo } from "@/components/ProgramLogo";
 import { Screw } from "@/components/Screw";
 import { StatusLED } from "@/components/StatusLED";
-import { Check, Plus, Pencil, Trash2, Upload, Search, Eye, PauseCircle, PlayCircle, Globe, Building2, Users } from "lucide-react";
+import { Check, Plus, Pencil, Trash2, Upload, Search, Eye, PauseCircle, PlayCircle, Globe, Building2 } from "lucide-react";
 import { toast } from "sonner";
 
 const PAGE_SIZE = 8;
 const ROOT_DOMAIN = "nxtlvlsuite.com";
 
-type AdminTab = "organizations" | "programs";
+type AdminSection = "organizations" | "programs";
 type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
 type DetailTab = "overview" | "programs" | "users" | "branding" | "domain" | "settings";
 
@@ -33,6 +34,7 @@ type WizardState = {
   name: string;
   slug: string;
   contactEmail: string;
+  ownerEmail: string;
   supportEmail: string;
   phoneNumber: string;
   industryType: string;
@@ -54,6 +56,7 @@ const DEFAULT_WIZARD_STATE: WizardState = {
   name: "",
   slug: "",
   contactEmail: "",
+  ownerEmail: "",
   supportEmail: "",
   phoneNumber: "",
   industryType: "",
@@ -130,12 +133,13 @@ function StatusPill({ status }: { status: OrganizationStatus }) {
 }
 
 function ProgramManagerTab() {
-  const { programs, addProgram, updateProgram, deleteProgram } = usePrograms();
+  const { programs, isLoading, addProgram, updateProgram, deleteProgram } = usePrograms();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyProgramForm());
   const [tagsInput, setTagsInput] = useState("");
   const [logoInputMode, setLogoInputMode] = useState<"url" | "upload">("url");
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
   const openAdd = () => {
     setEditingId(null);
@@ -145,31 +149,38 @@ function ProgramManagerTab() {
     setOpen(true);
   };
 
-  const openEdit = (p: Program) => {
-    setEditingId(p.id);
-    setForm({ ...p });
-    setTagsInput(p.tags.join(", "));
-    setLogoInputMode(p.logoUrl?.startsWith("data:") ? "upload" : "url");
+  const openEdit = (program: Program) => {
+    setEditingId(program.id);
+    setForm({ ...program });
+    setTagsInput(program.tags.join(", "));
+    setLogoInputMode(program.logoUrl?.startsWith("http") ? "url" : "upload");
     setOpen(true);
   };
 
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => setForm((prev) => ({ ...prev, [key]: value }));
 
-  const handleLogoUpload = (file?: File) => {
+  const handleLogoUpload = async (file?: File) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       toast.error("Please upload an image file");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      set("logoUrl", typeof reader.result === "string" ? reader.result : "");
+
+    setIsUploadingLogo(true);
+
+    try {
+      const upload = await uploadLogoFile(file);
+      set("logoUrl", upload.logoUrl);
       setLogoInputMode("upload");
-    };
-    reader.readAsDataURL(file);
+      toast.success("Logo uploaded");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setIsUploadingLogo(false);
+    }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name.trim() || !form.shortDescription.trim() || !form.longDescription.trim()) {
       toast.error("Program name and descriptions are required");
       return;
@@ -193,7 +204,7 @@ function ProgramManagerTab() {
 
     const data = {
       ...form,
-      tags: tagsInput.split(",").map((t) => t.trim()).filter(Boolean),
+      tags: tagsInput.split(",").map((tag) => tag.trim()).filter(Boolean),
       name: form.name.trim(),
       shortDescription: form.shortDescription.trim(),
       longDescription: form.longDescription.trim(),
@@ -203,14 +214,27 @@ function ProgramManagerTab() {
       launchLabel: form.launchLabel.trim() || "Launch",
     };
 
-    if (editingId) {
-      updateProgram(editingId, data);
-      toast.success("Program updated");
-    } else {
-      addProgram(data);
-      toast.success("Program added");
+    try {
+      if (editingId) {
+        await updateProgram(editingId, data);
+        toast.success("Program updated");
+      } else {
+        await addProgram(data);
+        toast.success("Program added");
+      }
+      setOpen(false);
+    } catch (error) {
+      toast.error(getErrorMessage(error));
     }
-    setOpen(false);
+  };
+
+  const handleDelete = async (programId: string) => {
+    try {
+      await deleteProgram(programId);
+      toast.success("Program archived");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
   };
 
   return (
@@ -226,21 +250,22 @@ function ProgramManagerTab() {
       </div>
 
       <div className="space-y-2">
-        {[...programs].sort((a, b) => a.displayOrder - b.displayOrder).map((p) => (
-          <div key={p.id} className="metal-panel rounded-lg p-4 flex items-center gap-4 relative">
+        {isLoading && <p className="text-xs text-muted-foreground font-mono">Loading catalog...</p>}
+        {[...programs].sort((a, b) => a.displayOrder - b.displayOrder).map((program) => (
+          <div key={program.id} className="metal-panel rounded-lg p-4 flex items-center gap-4 relative">
             <Screw className="absolute top-2 left-2" />
-            <ProgramLogo name={p.name} logoUrl={p.logoUrl} accentColor={p.accentColor} className="w-8 h-8" textClassName="text-xs" />
+            <ProgramLogo name={program.name} logoUrl={program.logoUrl} accentColor={program.accentColor} className="w-8 h-8" textClassName="text-xs" />
             <div className="flex-1 min-w-0">
-              <p className="font-mono font-medium text-foreground text-sm truncate">{p.name}</p>
-              <p className="text-[10px] stamped-label">{p.category} · Order: {p.displayOrder}</p>
+              <p className="font-mono font-medium text-foreground text-sm truncate">{program.name}</p>
+              <p className="text-[10px] stamped-label">{program.category} · Order: {program.displayOrder}</p>
             </div>
-            <StatusLED status={p.status} className="hidden sm:flex" />
-            {!p.isPublic && <span className="stamped-label text-[8px] hidden sm:inline">Private</span>}
+            <StatusLED status={program.status} className="hidden sm:flex" />
+            {!program.isPublic && <span className="stamped-label text-[8px] hidden sm:inline">Private</span>}
             <div className="flex gap-1 shrink-0">
-              <button onClick={() => openEdit(p)} className="metal-button rounded p-1.5 hover:text-primary transition-colors">
+              <button onClick={() => openEdit(program)} className="metal-button rounded p-1.5 hover:text-primary transition-colors">
                 <Pencil className="h-3.5 w-3.5" />
               </button>
-              <button onClick={() => deleteProgram(p.id)} className="metal-button rounded p-1.5 hover:text-destructive transition-colors">
+              <button onClick={() => void handleDelete(program.id)} className="metal-button rounded p-1.5 hover:text-destructive transition-colors">
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -257,30 +282,30 @@ function ProgramManagerTab() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="font-mono text-xs uppercase tracking-wider">Program Name *</Label>
-                <Input value={form.name} onChange={(e) => set("name", e.target.value)} className="bg-secondary font-mono text-xs" />
+                <Input value={form.name} onChange={(event) => set("name", event.target.value)} className="bg-secondary font-mono text-xs" />
               </div>
               <div className="space-y-2">
                 <Label className="font-mono text-xs uppercase tracking-wider">Category</Label>
-                <Select value={form.category} onValueChange={(v) => set("category", v)}>
+                <Select value={form.category} onValueChange={(value) => set("category", value)}>
                   <SelectTrigger className="bg-secondary font-mono text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>{CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                  <SelectContent>{CATEGORIES.map((category) => <SelectItem key={category} value={category}>{category}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             </div>
 
             <div className="space-y-2">
               <Label className="font-mono text-xs uppercase tracking-wider">Short Description</Label>
-              <Input value={form.shortDescription} onChange={(e) => set("shortDescription", e.target.value)} className="bg-secondary font-mono text-xs" />
+              <Input value={form.shortDescription} onChange={(event) => set("shortDescription", event.target.value)} className="bg-secondary font-mono text-xs" />
             </div>
             <div className="space-y-2">
               <Label className="font-mono text-xs uppercase tracking-wider">Long Description</Label>
-              <Textarea value={form.longDescription} onChange={(e) => set("longDescription", e.target.value)} rows={3} className="bg-secondary font-mono text-xs" />
+              <Textarea value={form.longDescription} onChange={(event) => set("longDescription", event.target.value)} rows={3} className="bg-secondary font-mono text-xs" />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="font-mono text-xs uppercase tracking-wider">Status</Label>
-                <Select value={form.status} onValueChange={(v) => set("status", v as ProgramStatus)}>
+                <Select value={form.status} onValueChange={(value) => set("status", value as ProgramStatus)}>
                   <SelectTrigger className="bg-secondary font-mono text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="live">Live</SelectItem>
@@ -293,7 +318,7 @@ function ProgramManagerTab() {
               </div>
               <div className="space-y-2">
                 <Label className="font-mono text-xs uppercase tracking-wider">Type</Label>
-                <Select value={form.type} onValueChange={(v) => set("type", v as ProgramType)}>
+                <Select value={form.type} onValueChange={(value) => set("type", value as ProgramType)}>
                   <SelectTrigger className="bg-secondary font-mono text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="internal">Internal</SelectItem>
@@ -320,13 +345,13 @@ function ProgramManagerTab() {
               </div>
 
               {logoInputMode === "url" ? (
-                <Input value={form.logoUrl || ""} onChange={(e) => set("logoUrl", e.target.value)} placeholder="https://cdn.nltops.com/logos/app.png" className="bg-secondary font-mono text-xs" />
+                <Input value={form.logoUrl || ""} onChange={(event) => set("logoUrl", event.target.value)} placeholder="https://cdn.nltops.com/logos/app.png" className="bg-secondary font-mono text-xs" />
               ) : (
                 <div className="space-y-2">
                   <Label htmlFor="logo-upload" className="inline-flex items-center gap-2 text-xs font-mono cursor-pointer metal-button rounded px-3 py-2">
-                    <Upload className="h-3.5 w-3.5" /> Choose Image
+                    <Upload className="h-3.5 w-3.5" /> {isUploadingLogo ? "Uploading..." : "Choose Image"}
                   </Label>
-                  <Input id="logo-upload" type="file" accept="image/*" className="hidden" onChange={(e) => handleLogoUpload(e.target.files?.[0])} />
+                  <Input id="logo-upload" type="file" accept="image/*" className="hidden" onChange={(event) => void handleLogoUpload(event.target.files?.[0])} disabled={isUploadingLogo} />
                 </div>
               )}
             </div>
@@ -334,35 +359,35 @@ function ProgramManagerTab() {
             {form.type === "internal" ? (
               <div className="space-y-2">
                 <Label className="font-mono text-xs uppercase tracking-wider">Internal Route / Path / Subdomain</Label>
-                <Input value={form.internalRoute || ""} onChange={(e) => set("internalRoute", e.target.value)} placeholder="/apps/my-app or app.nltops.com" className="bg-secondary font-mono text-xs" />
+                <Input value={form.internalRoute || ""} onChange={(event) => set("internalRoute", event.target.value)} placeholder="/apps/my-app or app.nltops.com" className="bg-secondary font-mono text-xs" />
               </div>
             ) : (
               <div className="space-y-2">
                 <Label className="font-mono text-xs uppercase tracking-wider">External URL</Label>
-                <Input value={form.externalUrl || ""} onChange={(e) => set("externalUrl", e.target.value)} placeholder="https://..." className="bg-secondary font-mono text-xs" />
+                <Input value={form.externalUrl || ""} onChange={(event) => set("externalUrl", event.target.value)} placeholder="https://..." className="bg-secondary font-mono text-xs" />
               </div>
             )}
 
             <div className="space-y-2">
               <Label className="font-mono text-xs uppercase tracking-wider">Tags (comma separated)</Label>
-              <Input value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} className="bg-secondary font-mono text-xs" />
+              <Input value={tagsInput} onChange={(event) => setTagsInput(event.target.value)} className="bg-secondary font-mono text-xs" />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="font-mono text-xs uppercase tracking-wider">Launch Label</Label>
-                <Input value={form.launchLabel} onChange={(e) => set("launchLabel", e.target.value)} className="bg-secondary font-mono text-xs" />
+                <Input value={form.launchLabel} onChange={(event) => set("launchLabel", event.target.value)} className="bg-secondary font-mono text-xs" />
               </div>
               <div className="space-y-2">
                 <Label className="font-mono text-xs uppercase tracking-wider">Display Order</Label>
-                <Input type="number" value={form.displayOrder} onChange={(e) => set("displayOrder", parseInt(e.target.value, 10) || 0)} className="bg-secondary font-mono text-xs" />
+                <Input type="number" value={form.displayOrder} onChange={(event) => set("displayOrder", parseInt(event.target.value, 10) || 0)} className="bg-secondary font-mono text-xs" />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="font-mono text-xs uppercase tracking-wider">Origin</Label>
-                <Select value={form.origin} onValueChange={(v) => set("origin", v as ProgramOrigin)}>
+                <Select value={form.origin} onValueChange={(value) => set("origin", value as ProgramOrigin)}>
                   <SelectTrigger className="bg-secondary font-mono text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="suite-native">Suite Native</SelectItem>
@@ -372,7 +397,7 @@ function ProgramManagerTab() {
               </div>
               <div className="space-y-2">
                 <Label className="font-mono text-xs uppercase tracking-wider">Accent Color (HSL)</Label>
-                <Input value={form.accentColor || ""} onChange={(e) => set("accentColor", e.target.value)} placeholder="217 80% 56%" className="bg-secondary font-mono text-xs" />
+                <Input value={form.accentColor || ""} onChange={(event) => set("accentColor", event.target.value)} placeholder="217 80% 56%" className="bg-secondary font-mono text-xs" />
               </div>
             </div>
 
@@ -385,7 +410,7 @@ function ProgramManagerTab() {
                 ["openInNewTab", "New Tab"],
               ] as const).map(([key, label]) => (
                 <div key={key} className="flex items-center gap-2">
-                  <Switch checked={form[key] as boolean} onCheckedChange={(v) => set(key, v)} />
+                  <Switch checked={form[key] as boolean} onCheckedChange={(checked) => set(key, checked)} />
                   <Label className="font-mono text-[10px] uppercase tracking-wider">{label}</Label>
                 </div>
               ))}
@@ -394,7 +419,7 @@ function ProgramManagerTab() {
 
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave}>{editingId ? "Update" : "Add"}</Button>
+            <Button onClick={() => void handleSave()}>{editingId ? "Update" : "Add"}</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -409,6 +434,7 @@ function OrganizationsTab() {
     bundles,
     programs,
     users,
+    isLoading,
     createOrganization,
     updateOrganization,
     setOrganizationPrograms,
@@ -426,25 +452,36 @@ function OrganizationsTab() {
   const [selectedOrgId, setSelectedOrgId] = useState<string>(organizations[0]?.id ?? "");
   const [detailTab, setDetailTab] = useState<DetailTab>("overview");
 
-  const selectedOrg = organizations.find((org) => org.id === selectedOrgId) ?? organizations[0];
+  useEffect(() => {
+    if (!selectedOrgId && organizations[0]?.id) {
+      setSelectedOrgId(organizations[0].id);
+      return;
+    }
+
+    if (selectedOrgId && !organizations.some((organization) => organization.id === selectedOrgId) && organizations[0]?.id) {
+      setSelectedOrgId(organizations[0].id);
+    }
+  }, [organizations, selectedOrgId]);
+
+  const selectedOrg = organizations.find((organization) => organization.id === selectedOrgId) ?? organizations[0];
 
   const usersByOrgId = useMemo(() => {
-    return users.reduce<Record<string, number>>((acc, user) => {
-      acc[user.orgId] = (acc[user.orgId] || 0) + 1;
-      return acc;
+    return users.reduce<Record<string, number>>((accumulator, user) => {
+      accumulator[user.orgId] = (accumulator[user.orgId] || 0) + 1;
+      return accumulator;
     }, {});
   }, [users]);
 
   const filtered = useMemo(() => {
     const lower = search.toLowerCase();
     return organizations
-      .filter((org) => {
+      .filter((organization) => {
         if (!lower) return true;
-        return [org.name, org.slug, org.subdomain, org.contactEmail].some((entry) => entry.toLowerCase().includes(lower));
+        return [organization.name, organization.slug, organization.subdomain, organization.contactEmail].some((entry) => entry.toLowerCase().includes(lower));
       })
-      .filter((org) => statusFilter === "all" || org.status === statusFilter)
-      .filter((org) => bundleFilter === "all" || org.assignedBundleIds.includes(bundleFilter))
-      .sort((a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime());
+      .filter((organization) => statusFilter === "all" || organization.status === statusFilter)
+      .filter((organization) => bundleFilter === "all" || organization.assignedBundleIds.includes(bundleFilter))
+      .sort((left, right) => new Date(right.lastActivityAt).getTime() - new Date(left.lastActivityAt).getTime());
   }, [organizations, search, statusFilter, bundleFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -484,8 +521,8 @@ function OrganizationsTab() {
 
   const validateStep = () => {
     if (wizardStep === 1) {
-      if (!wizardState.name.trim() || !wizardState.contactEmail.trim() || !wizardState.supportEmail.trim()) {
-        toast.error("Name, contact email, and support email are required");
+      if (!wizardState.name.trim() || !wizardState.contactEmail.trim() || !wizardState.ownerEmail.trim() || !wizardState.supportEmail.trim()) {
+        toast.error("Name, contact email, owner email, and support email are required");
         return false;
       }
       if (!wizardState.slug.trim()) {
@@ -529,42 +566,52 @@ function OrganizationsTab() {
 
   const prevStep = () => setWizardStep((prev) => (prev > 1 ? (prev - 1) as WizardStep : prev));
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     const trialEndsAt = wizardState.status === "trial"
       ? new Date(Date.now() + wizardState.trialDays * 24 * 60 * 60 * 1000).toISOString()
       : "";
 
-    const organization = createOrganization({
-      name: wizardState.name,
-      slug: wizardState.slug,
-      subdomain: wizardState.subdomain,
-      contactEmail: wizardState.contactEmail,
-      supportEmail: wizardState.supportEmail,
-      phoneNumber: wizardState.phoneNumber,
-      industryType: wizardState.industryType,
-      notes: wizardState.notes,
-      logoUrl: wizardState.logoUrl,
-      bannerUrl: wizardState.bannerUrl,
-      primaryColor: wizardState.primaryColor,
-      accentColor: wizardState.accentColor,
-      assignedBundleIds: wizardState.assignedBundleIds,
-      assignedProgramIds: wizardState.assignedProgramIds,
-      planType: wizardState.planType,
-      status: wizardState.status,
-      seatLimit: wizardState.seatLimit,
-      trialEndsAt,
-    });
+    try {
+      const organization = await createOrganization({
+        name: wizardState.name,
+        slug: wizardState.slug,
+        subdomain: wizardState.subdomain,
+        contactEmail: wizardState.contactEmail,
+        ownerEmail: wizardState.ownerEmail,
+        supportEmail: wizardState.supportEmail,
+        phoneNumber: wizardState.phoneNumber,
+        industryType: wizardState.industryType,
+        notes: wizardState.notes,
+        logoUrl: wizardState.logoUrl,
+        bannerUrl: wizardState.bannerUrl,
+        primaryColor: wizardState.primaryColor,
+        accentColor: wizardState.accentColor,
+        assignedBundleIds: wizardState.assignedBundleIds,
+        assignedProgramIds: wizardState.assignedProgramIds,
+        planType: wizardState.planType,
+        status: wizardState.status,
+        seatLimit: wizardState.seatLimit,
+        trialEndsAt,
+      });
 
-    toast.success("Organization created");
-    setSelectedOrgId(organization.id);
-    setWizardOpen(false);
-    setWizardStep(1);
+      toast.success("Organization created");
+      setSelectedOrgId(organization.id);
+      setWizardOpen(false);
+      setWizardStep(1);
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
   };
 
-  const toggleOrgStatus = (org: Organization) => {
-    const nextStatus: OrganizationStatus = org.status === "suspended" ? "active" : "suspended";
-    updateOrganization(org.id, { status: nextStatus });
-    toast.success(nextStatus === "active" ? "Organization reactivated" : "Organization suspended");
+  const toggleOrgStatus = async (organization: Organization) => {
+    const nextStatus: OrganizationStatus = organization.status === "suspended" ? "active" : "suspended";
+
+    try {
+      await updateOrganization(organization.id, { status: nextStatus });
+      toast.success(nextStatus === "active" ? "Organization reactivated" : "Organization suspended");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
   };
 
   const renderWizardStep = () => {
@@ -606,6 +653,11 @@ function OrganizationsTab() {
           <div className="space-y-2">
             <Label>Contact Email</Label>
             <Input value={wizardState.contactEmail} onChange={(event) => updateWizard("contactEmail", event.target.value)} placeholder="ops@organization.org" />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Owner Email</Label>
+            <Input value={wizardState.ownerEmail} onChange={(event) => updateWizard("ownerEmail", event.target.value)} placeholder="owner@organization.org" />
           </div>
 
           <div className="space-y-2">
@@ -783,6 +835,7 @@ function OrganizationsTab() {
           <p className="mt-2 font-medium">{wizardState.name}</p>
           <p className="text-xs text-muted-foreground">Slug: {wizardState.slug}</p>
           <p className="text-xs text-muted-foreground">Contact: {wizardState.contactEmail}</p>
+          <p className="text-xs text-muted-foreground">Owner: {wizardState.ownerEmail}</p>
         </div>
 
         <div className="rounded-lg border border-border p-4">
@@ -816,10 +869,15 @@ function OrganizationsTab() {
     );
   };
 
-  const updateSelectedPrograms = (bundleIds: string[], programIds: string[]) => {
+  const updateSelectedPrograms = async (bundleIds: string[], programIds: string[]) => {
     if (!selectedOrg) return;
-    setOrganizationPrograms(selectedOrg.id, programIds, bundleIds);
-    toast.success("Organization programs updated");
+
+    try {
+      await setOrganizationPrograms(selectedOrg.id, programIds, bundleIds);
+      toast.success("Organization programs updated");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
   };
 
   return (
@@ -835,6 +893,7 @@ function OrganizationsTab() {
       </div>
 
       <div className="metal-panel rounded-lg p-4">
+        {isLoading && <p className="mb-3 text-xs text-muted-foreground">Loading organizations...</p>}
         <div className="grid gap-3 md:grid-cols-[1fr_220px_220px]">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -886,37 +945,37 @@ function OrganizationsTab() {
               </TableRow>
             )}
 
-            {paged.map((org) => {
-              const mainBundle = bundles.find((bundle) => org.assignedBundleIds.includes(bundle.id));
+            {paged.map((organization) => {
+              const mainBundle = bundles.find((bundle) => organization.assignedBundleIds.includes(bundle.id));
               return (
-                <TableRow key={org.id} className={cn(selectedOrg?.id === org.id && "bg-secondary/30")}>
+                <TableRow key={organization.id} className={cn(selectedOrg?.id === organization.id && "bg-secondary/30")}>
                   <TableCell>
                     <div>
-                      <p className="font-medium">{org.name}</p>
-                      <p className="text-xs text-muted-foreground">{org.slug}</p>
+                      <p className="font-medium">{organization.name}</p>
+                      <p className="text-xs text-muted-foreground">{organization.slug}</p>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="text-xs">
-                      <p className="font-medium">{org.subdomain}.{ROOT_DOMAIN}</p>
-                      <p className="text-muted-foreground">/org/{org.slug}</p>
+                      <p className="font-medium">{organization.subdomain}.{ROOT_DOMAIN}</p>
+                      <p className="text-muted-foreground">/org/{organization.slug}</p>
                     </div>
                   </TableCell>
-                  <TableCell><StatusPill status={org.status} /></TableCell>
+                  <TableCell><StatusPill status={organization.status} /></TableCell>
                   <TableCell>{mainBundle?.name || "Custom"}</TableCell>
-                  <TableCell>{usersByOrgId[org.id] || 0}</TableCell>
-                  <TableCell>{formatDate(org.createdAt)}</TableCell>
-                  <TableCell>{formatDate(org.lastActivityAt)}</TableCell>
+                  <TableCell>{usersByOrgId[organization.id] || 0}</TableCell>
+                  <TableCell>{formatDate(organization.createdAt)}</TableCell>
+                  <TableCell>{formatDate(organization.lastActivityAt)}</TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-2">
-                      <Button size="sm" variant="outline" onClick={() => { setSelectedOrgId(org.id); setDetailTab("overview"); }}>
+                      <Button size="sm" variant="outline" onClick={() => { setSelectedOrgId(organization.id); setDetailTab("overview"); }}>
                         <Eye className="h-3.5 w-3.5" /> View
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => { setSelectedOrgId(org.id); setDetailTab("settings"); }}>
+                      <Button size="sm" variant="outline" onClick={() => { setSelectedOrgId(organization.id); setDetailTab("settings"); }}>
                         <Pencil className="h-3.5 w-3.5" /> Edit
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => toggleOrgStatus(org)}>
-                        {org.status === "suspended" ? <PlayCircle className="h-3.5 w-3.5" /> : <PauseCircle className="h-3.5 w-3.5" />}
+                      <Button size="sm" variant="outline" onClick={() => void toggleOrgStatus(organization)}>
+                        {organization.status === "suspended" ? <PlayCircle className="h-3.5 w-3.5" /> : <PauseCircle className="h-3.5 w-3.5" />}
                       </Button>
                     </div>
                   </TableCell>
@@ -954,7 +1013,7 @@ function OrganizationsTab() {
             </div>
 
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => toggleOrgStatus(selectedOrg)}>{selectedOrg.status === "suspended" ? "Reactivate" : "Suspend"}</Button>
+              <Button variant="outline" size="sm" onClick={() => void toggleOrgStatus(selectedOrg)}>{selectedOrg.status === "suspended" ? "Reactivate" : "Suspend"}</Button>
               <Button variant="outline" size="sm" onClick={() => setDetailTab("branding")}>Edit Branding</Button>
               <Button size="sm" onClick={() => navigate(getOrgBasePath(selectedOrg.slug))}>Open Portal</Button>
             </div>
@@ -1067,7 +1126,7 @@ function OrganizationsTab() {
               {wizardStep < 6 ? (
                 <Button onClick={nextStep}>Next</Button>
               ) : (
-                <Button onClick={handleCreate}><Check className="h-4 w-4" /> Confirm & Create</Button>
+                <Button onClick={() => void handleCreate()}><Check className="h-4 w-4" /> Confirm & Create</Button>
               )}
             </div>
           </div>
@@ -1086,7 +1145,7 @@ function ProgramAssignmentsPanel({
   org: Organization;
   bundles: Bundle[];
   programs: SuiteProgram[];
-  onSave: (bundleIds: string[], programIds: string[]) => void;
+  onSave: (bundleIds: string[], programIds: string[]) => Promise<void>;
 }) {
   const [bundleIds, setBundleIds] = useState<string[]>(org.assignedBundleIds);
   const [programIds, setProgramIds] = useState<string[]>(org.assignedProgramIds);
@@ -1141,13 +1200,13 @@ function ProgramAssignmentsPanel({
       </div>
 
       <div className="flex justify-end">
-        <Button onClick={() => onSave(bundleIds, programIds)}>Save Programs</Button>
+        <Button onClick={() => void onSave(bundleIds, programIds)}>Save Programs</Button>
       </div>
     </div>
   );
 }
 
-function BrandingPanel({ org, onSave }: { org: Organization; onSave: (updates: Partial<Organization>) => void }) {
+function BrandingPanel({ org, onSave }: { org: Organization; onSave: (updates: Partial<Organization>) => Promise<void> }) {
   const [logoUrl, setLogoUrl] = useState(org.logoUrl || "");
   const [bannerUrl, setBannerUrl] = useState(org.bannerUrl || "");
   const [primaryColor, setPrimaryColor] = useState(org.branding.primaryColor);
@@ -1186,13 +1245,17 @@ function BrandingPanel({ org, onSave }: { org: Organization; onSave: (updates: P
       </div>
 
       <div className="flex justify-end">
-        <Button onClick={() => {
-          onSave({
-            logoUrl,
-            bannerUrl,
-            branding: { primaryColor, accentColor },
-          });
-          toast.success("Branding updated");
+        <Button onClick={async () => {
+          try {
+            await onSave({
+              logoUrl,
+              bannerUrl,
+              branding: { primaryColor, accentColor },
+            });
+            toast.success("Branding updated");
+          } catch (error) {
+            toast.error(getErrorMessage(error));
+          }
         }}>
           Save Branding
         </Button>
@@ -1208,7 +1271,7 @@ function DomainPanel({
 }: {
   org: Organization;
   isSubdomainAvailable: (subdomain: string, exceptOrgId?: string) => boolean;
-  onSave: (subdomain: string) => void;
+  onSave: (subdomain: string) => Promise<void>;
 }) {
   const [subdomain, setSubdomain] = useState(org.subdomain);
   const normalized = subdomainify(subdomain);
@@ -1243,9 +1306,13 @@ function DomainPanel({
       <div className="flex justify-end">
         <Button
           disabled={!normalized || !available}
-          onClick={() => {
-            onSave(normalized);
-            toast.success("Domain settings updated");
+          onClick={async () => {
+            try {
+              await onSave(normalized);
+              toast.success("Domain settings updated");
+            } catch (error) {
+              toast.error(getErrorMessage(error));
+            }
           }}
         >
           <Globe className="h-4 w-4" /> Save Domain
@@ -1255,9 +1322,10 @@ function DomainPanel({
   );
 }
 
-function SettingsPanel({ org, onSave }: { org: Organization; onSave: (updates: Partial<Organization>) => void }) {
+function SettingsPanel({ org, onSave }: { org: Organization; onSave: (updates: Partial<Organization>) => Promise<void> }) {
   const [supportEmail, setSupportEmail] = useState(org.supportEmail);
   const [contactEmail, setContactEmail] = useState(org.contactEmail);
+  const [ownerEmail, setOwnerEmail] = useState(org.ownerEmail);
   const [phoneNumber, setPhoneNumber] = useState(org.phoneNumber || "");
   const [seatLimit, setSeatLimit] = useState(org.seatLimit);
   const [status, setStatus] = useState<OrganizationStatus>(org.status);
@@ -1278,6 +1346,11 @@ function SettingsPanel({ org, onSave }: { org: Organization; onSave: (updates: P
         <div className="space-y-2">
           <Label>Contact Email</Label>
           <Input value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Owner Email</Label>
+          <Input value={ownerEmail} onChange={(event) => setOwnerEmail(event.target.value)} />
         </div>
 
         <div className="space-y-2">
@@ -1315,9 +1388,13 @@ function SettingsPanel({ org, onSave }: { org: Organization; onSave: (updates: P
 
       <div className="flex justify-end">
         <Button
-          onClick={() => {
-            onSave({ supportEmail, contactEmail, phoneNumber, seatLimit, status });
-            toast.success("Organization settings updated");
+          onClick={async () => {
+            try {
+              await onSave({ supportEmail, contactEmail, ownerEmail, phoneNumber, seatLimit, status });
+              toast.success("Organization settings updated");
+            } catch (error) {
+              toast.error(getErrorMessage(error));
+            }
           }}
         >
           Save Settings
@@ -1327,8 +1404,12 @@ function SettingsPanel({ org, onSave }: { org: Organization; onSave: (updates: P
   );
 }
 
-export default function AdminPage() {
-  const [tab, setTab] = useState<AdminTab>("organizations");
+interface AdminPageProps {
+  section?: AdminSection;
+}
+
+export default function AdminPage({ section = "organizations" }: AdminPageProps) {
+  const isOrganizationsView = section === "organizations";
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-6">
@@ -1336,23 +1417,17 @@ export default function AdminPage() {
         <Screw className="absolute top-3 left-3" />
         <Screw className="absolute top-3 right-3" />
         <p className="stamped-label text-[10px]">Nxt Lvl Suite Admin Panel</p>
-        <h1 className="font-mono text-xl font-bold tracking-tight">Platform Control Center</h1>
-        <p className="text-xs text-muted-foreground font-mono">Manage organizations, bundles, domains, branding, and platform access from one place.</p>
+        <h1 className="font-mono text-xl font-bold tracking-tight">
+          {isOrganizationsView ? "Organization Management" : "Program Control Center"}
+        </h1>
+        <p className="text-xs text-muted-foreground font-mono">
+          {isOrganizationsView
+            ? "Manage organizations, ownership, domains, branding, and org-level access."
+            : "Manage suite-wide programs, launch destinations, and catalog visibility."}
+        </p>
       </div>
 
-      <Tabs value={tab} onValueChange={(value) => setTab(value as AdminTab)}>
-        <TabsList>
-          <TabsTrigger value="organizations" className="gap-2"><Users className="h-4 w-4" /> Organizations</TabsTrigger>
-          <TabsTrigger value="programs" className="gap-2"><Building2 className="h-4 w-4" /> Program Catalog</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="organizations" className="mt-5">
-          <OrganizationsTab />
-        </TabsContent>
-        <TabsContent value="programs" className="mt-5">
-          <ProgramManagerTab />
-        </TabsContent>
-      </Tabs>
+      {isOrganizationsView ? <OrganizationsTab /> : <ProgramManagerTab />}
     </div>
   );
 }

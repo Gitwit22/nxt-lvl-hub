@@ -1,4 +1,4 @@
-import { LayoutGrid, Info, Settings } from "lucide-react";
+import { Building2, Info, LayoutGrid, Users } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -14,8 +14,9 @@ import {
 
 const navItems = [
   { title: "Applications", url: "/applications", icon: LayoutGrid },
+  { title: "Organizations", url: "/admin/organizations", icon: Users },
+  { title: "Program Control", url: "/admin/programs", icon: Building2 },
   { title: "About", url: "/about", icon: Info },
-  { title: "Admin", url: "/admin", icon: Settings },
 ];
 
 export function AppSidebar() {

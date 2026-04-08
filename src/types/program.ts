@@ -4,6 +4,8 @@ export type ProgramOrigin = "suite-native" | "external-partner";
 
 export interface Program {
   id: string;
+  slug?: string;
+  organizationId?: string | null;
   name: string;
   shortDescription: string;
   longDescription: string;

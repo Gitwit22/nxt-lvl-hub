@@ -1,9 +1,11 @@
 import { z } from "zod";
-import { programOrigins, programStatuses } from "../models/program.model.js";
+import { programOrigins, programStatuses, programTypes } from "../models/program.model.js";
 
 const nullableText = z.string().trim().optional().nullable().transform((value) => value || null);
 
 const programInputFields = z.object({
+  id: z.string().trim().optional(),
+  slug: z.string().trim().optional(),
   organizationId: z.string().trim().optional().nullable(),
   name: z.string().trim().min(1, "Program name is required."),
   shortDescription: z.string().trim().min(1, "Short description is required."),
@@ -12,19 +14,24 @@ const programInputFields = z.object({
   status: z.enum(programStatuses),
   tags: z.array(z.string().trim().min(1)).default([]),
   logoUrl: nullableText,
-  internalOrExternal: z.enum(programOrigins),
+  screenshotUrl: nullableText,
+  type: z.enum(programTypes),
+  origin: z.enum(programOrigins).default("suite-native"),
   internalRoute: nullableText,
   externalUrl: nullableText,
-  featured: z.boolean().default(false),
+  openInNewTab: z.boolean().default(false),
+  isFeatured: z.boolean().default(false),
+  isPublic: z.boolean().default(true),
+  requiresLogin: z.boolean().default(false),
+  requiresApproval: z.boolean().default(false),
   displayOrder: z.number().finite(),
-  loginRequired: z.boolean().default(false),
-  launchButtonLabel: z.string().trim().default("Launch"),
+  launchLabel: z.string().trim().default("Launch"),
   notes: z.string().trim().default(""),
   accentColor: nullableText,
 });
 
 export const programInputSchema = programInputFields.superRefine((value, context) => {
-    if (value.internalOrExternal === "internal" && !value.internalRoute) {
+    if (value.type === "internal" && !value.internalRoute) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["internalRoute"],
@@ -32,7 +39,7 @@ export const programInputSchema = programInputFields.superRefine((value, context
       });
     }
 
-    if (value.internalOrExternal === "external" && !value.externalUrl) {
+    if (value.type === "external" && !value.externalUrl) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["externalUrl"],
