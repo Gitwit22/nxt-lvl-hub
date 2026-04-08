@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: nxt-lvl-hub
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: CORS_ORIGIN
+        value: https://nltops.com
+      - key: UPLOAD_PATH
+        value: backend/uploads
