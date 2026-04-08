@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api";
 
-const defaultInviteRole: OrgRole = "Staff";
+const defaultInviteRole: OrgRole = "staff";
 
 export default function OrgUsersPage() {
   const { orgSlug = "" } = useParams();
@@ -18,7 +18,7 @@ export default function OrgUsersPage() {
     getOrganizationBySlug,
     getUsersForOrganization,
     getOrganizationPrograms,
-    activeUserByOrg,
+    getOrgCurrentUser,
     inviteUser,
     updateUser,
   } = useOrgPortal();
@@ -36,7 +36,7 @@ export default function OrgUsersPage() {
   }
 
   const orgPrograms = getOrganizationPrograms(org);
-  const currentUser = users.find((user) => user.id === activeUserByOrg[org.id]) ?? users[0];
+  const currentUser = getOrgCurrentUser(org.id);
   const canManage = currentUser ? canManageUsers(currentUser.role) : false;
 
   const submitInvite = async (event: FormEvent<HTMLFormElement>) => {
@@ -116,10 +116,10 @@ export default function OrgUsersPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Super Admin">Super Admin</SelectItem>
-                <SelectItem value="Org Admin">Org Admin</SelectItem>
-                <SelectItem value="Manager">Manager</SelectItem>
-                <SelectItem value="Staff">Staff</SelectItem>
+                <SelectItem value="super_admin">Super Admin</SelectItem>
+                <SelectItem value="org_admin">Org Admin</SelectItem>
+                <SelectItem value="manager">Manager</SelectItem>
+                <SelectItem value="staff">Staff</SelectItem>
               </SelectContent>
             </Select>
           </div>

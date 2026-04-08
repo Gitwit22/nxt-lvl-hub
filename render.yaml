@@ -12,3 +12,9 @@ services:
         value: https://nltops.com
       - key: UPLOAD_PATH
         value: backend/uploads
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: PLATFORM_SETUP_TOKEN
+        sync: false

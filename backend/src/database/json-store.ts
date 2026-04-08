@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { env } from "../config/env.js";
 import type { DatabaseStatus } from "../models/api.model.js";
+import type { AuthUserRecord } from "../models/auth.model.js";
 import type { OrganizationRecord } from "../models/organization.model.js";
 import type { OrgUserRecord } from "../models/org-user.model.js";
 import type { ProgramRecord } from "../models/program.model.js";
@@ -11,6 +12,7 @@ export interface PartitionState {
   programs: ProgramRecord[];
   organizations: OrganizationRecord[];
   users: OrgUserRecord[];
+  authUsers: AuthUserRecord[];
 }
 
 interface LegacyDatabaseState {
@@ -27,6 +29,7 @@ const emptyPartitionState: PartitionState = {
   programs: [],
   organizations: [],
   users: [],
+  authUsers: [],
 };
 
 const emptyState: DatabaseState = {
@@ -38,6 +41,7 @@ function clonePartitionState(state?: Partial<PartitionState>): PartitionState {
     programs: Array.isArray(state?.programs) ? state.programs : [],
     organizations: Array.isArray(state?.organizations) ? state.organizations : [],
     users: Array.isArray(state?.users) ? state.users : [],
+    authUsers: Array.isArray(state?.authUsers) ? state.authUsers : [],
   };
 }
 
@@ -57,6 +61,7 @@ function normalizeState(parsed: LegacyDatabaseState): DatabaseState {
       programs: Array.isArray(parsed.programs) ? parsed.programs : [],
       organizations: Array.isArray(parsed.organizations) ? parsed.organizations : [],
       users: [],
+      authUsers: [],
     };
   }
 

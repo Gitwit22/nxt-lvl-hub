@@ -71,6 +71,13 @@ export class OrganizationService {
     const organizations = (await organizationRepository.list(partitionKey)).filter((organization) => !organization.deletedAt);
     const now = new Date().toISOString();
 
+    const duplicateSubdomain = organizations.find(
+      (o) => o.subdomain.toLowerCase() === data.subdomain.toLowerCase(),
+    );
+    if (duplicateSubdomain) {
+      throw new AppError("That subdomain is already in use.", 409);
+    }
+
     const organization: OrganizationRecord = {
       id: data.id || crypto.randomUUID(),
       slug: data.slug || uniqueSlug(data.name, organizations.map((entry) => entry.slug)),
@@ -140,6 +147,13 @@ export class OrganizationService {
     const existingSlugs = organizations.filter((entry) => entry.id !== id && !entry.deletedAt).map((entry) => entry.slug);
     const slug = validated.name === current.name ? current.slug : uniqueSlug(validated.name, existingSlugs);
     const settings = validated.name === current.name ? current.settings : createDefaultSettings(validated.name);
+
+    const duplicateSubdomain = organizations
+      .filter((o) => o.id !== id && !o.deletedAt)
+      .find((o) => o.subdomain.toLowerCase() === validated.subdomain.toLowerCase());
+    if (duplicateSubdomain) {
+      throw new AppError("That subdomain is already in use.", 409);
+    }
 
     const updated = await organizationRepository.update(partitionKey, id, (organization) => ({
       ...organization,

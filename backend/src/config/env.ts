@@ -11,6 +11,11 @@ export const env = {
   corsOrigin: process.env.CORS_ORIGIN || "http://localhost:8080",
   dataFilePath: path.resolve(process.cwd(), "backend/database/app-data.json"),
   appPartitionDefault: (process.env.APP_PARTITION_DEFAULT || "nxt-lvl-hub").trim().toLowerCase(),
+  jwtSecret: process.env.JWT_SECRET || "dev-jwt-secret-change-in-production",
+  jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || "dev-jwt-refresh-secret-change-in-production",
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || "15m",
+  jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
+  platformSetupToken: process.env.PLATFORM_SETUP_TOKEN || "",
 };
 
 export function getAllowedOrigins() {

@@ -24,7 +24,7 @@ function LinkItem({ to, icon: Icon, label }: { to: string; icon: React.Component
 
 export function OrgPortalLayout() {
   const { orgSlug = "" } = useParams();
-  const { getOrganizationBySlug, getUsersForOrganization, activeUserByOrg } = useOrgPortal();
+  const { getOrganizationBySlug, getOrgCurrentUser } = useOrgPortal();
 
   const org = getOrganizationBySlug(orgSlug);
   if (!org) {
@@ -36,8 +36,7 @@ export function OrgPortalLayout() {
     );
   }
 
-  const users = getUsersForOrganization(org.id);
-  const currentUser = users.find((user) => user.id === activeUserByOrg[org.id]);
+  const currentUser = getOrgCurrentUser(org.id);
   const adminView = currentUser ? canManageUsers(currentUser.role) : false;
 
   const navItems = [

@@ -10,6 +10,13 @@ export function normalizePartitionKey(input?: string | null) {
 }
 
 export function getRequestPartition(request: Request) {
+  // For authenticated requests derive partition from the trusted JWT claims,
+  // ignoring any client-supplied header.
+  if (request.authUser?.partition) {
+    return normalizePartitionKey(request.authUser.partition);
+  }
+
+  // Unauthenticated requests (health, auth endpoints) fall back to header/query.
   const fromHeader = request.header(PARTITION_HEADER);
   const fromQuery = typeof request.query.partition === "string" ? request.query.partition : undefined;
   return normalizePartitionKey(fromHeader || fromQuery);

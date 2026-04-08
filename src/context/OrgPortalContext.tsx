@@ -13,11 +13,11 @@ import {
   updateOrganization as updateOrganizationRecord,
 } from "@/lib/api";
 import { usePrograms } from "@/context/ProgramContext";
+import { useAuth } from "@/context/AuthContext";
 import { Bundle, OrgRole, Organization, PortalUser, SuiteProgram } from "@/types/orgPortal";
 
 const ORG_STORAGE_KEY = "nxtlvl.organizations";
 const USER_STORAGE_KEY = "nxtlvl.orgUsers";
-const ACTIVE_USER_STORAGE_KEY = "nxtlvl.activeUserByOrg";
 
 function loadOrganizations() {
   const raw = localStorage.getItem(ORG_STORAGE_KEY);
@@ -47,31 +47,6 @@ function loadUsers() {
 
 function saveUsers(users: PortalUser[]) {
   localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(users));
-}
-
-function getInitialActiveUserByOrg(users: PortalUser[], organizations: Organization[]) {
-  const raw = localStorage.getItem(ACTIVE_USER_STORAGE_KEY);
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw) as Record<string, string | undefined>;
-      if (parsed && typeof parsed === "object") {
-        return parsed;
-      }
-    } catch {
-      // Fall through to generated map.
-    }
-  }
-
-  const sortedUsers = [...users].sort((a, b) => roleWeight(b.role) - roleWeight(a.role));
-  return organizations.reduce<Record<string, string | undefined>>((acc, org) => {
-    const first = sortedUsers.find((user) => user.orgId === org.id && user.active);
-    acc[org.id] = first?.id;
-    return acc;
-  }, {});
-}
-
-function saveActiveUserByOrg(map: Record<string, string | undefined>) {
-  localStorage.setItem(ACTIVE_USER_STORAGE_KEY, JSON.stringify(map));
 }
 
 interface InviteUserInput {
@@ -109,7 +84,6 @@ interface OrgPortalContextType {
   programs: SuiteProgram[];
   bundles: Bundle[];
   users: PortalUser[];
-  activeUserByOrg: Record<string, string | undefined>;
   isLoading: boolean;
   getOrganizationBySlug: (slug: string) => Organization | undefined;
   getOrganizationBySubdomain: (subdomain: string) => Organization | undefined;
@@ -118,11 +92,11 @@ interface OrgPortalContextType {
   isSubdomainAvailable: (subdomain: string, exceptOrgId?: string) => boolean;
   getUsersForOrganization: (orgId: string) => PortalUser[];
   getOrganizationPrograms: (org: Organization) => SuiteProgram[];
+  getOrgCurrentUser: (orgId: string) => PortalUser | undefined;
   getProgramsForUser: (org: Organization, userId: string) => SuiteProgram[];
   inviteUser: (input: InviteUserInput) => Promise<void>;
   createOrganization: (input: CreateOrganizationInput) => Promise<Organization>;
   updateUser: (userId: string, updates: Partial<PortalUser>) => Promise<void>;
-  setActiveUserForOrg: (orgId: string, userId: string) => void;
   updateOrganization: (orgId: string, updates: Partial<Organization>) => Promise<void>;
   setOrganizationPrograms: (orgId: string, assignedProgramIds: string[], assignedBundleIds: string[]) => Promise<void>;
 }
@@ -131,13 +105,13 @@ const OrgPortalContext = createContext<OrgPortalContextType | undefined>(undefin
 
 function roleWeight(role: OrgRole) {
   switch (role) {
-    case "Super Admin":
+    case "super_admin":
       return 4;
-    case "Org Admin":
+    case "org_admin":
       return 3;
-    case "Manager":
+    case "manager":
       return 2;
-    case "Staff":
+    case "staff":
       return 1;
     default:
       return 1;
@@ -145,16 +119,14 @@ function roleWeight(role: OrgRole) {
 }
 
 export function canManageUsers(role: OrgRole) {
-  return role === "Super Admin" || role === "Org Admin";
+  return role === "super_admin" || role === "org_admin";
 }
 
 export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
   const { programs: catalogPrograms } = usePrograms();
+  const { authUserId, isAuthenticated } = useAuth();
   const [organizations, setOrganizations] = useState<Organization[]>(() => loadOrganizations());
   const [users, setUsers] = useState<PortalUser[]>(() => loadUsers());
-  const [activeUserByOrg, setActiveUserByOrg] = useState<Record<string, string | undefined>>(() =>
-    getInitialActiveUserByOrg(loadUsers(), loadOrganizations()),
-  );
   const [isLoading, setIsLoading] = useState(true);
 
   const hydrateUsers = useCallback(async (orgRecords: Organization[]) => {
@@ -251,33 +223,7 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     void hydrateOrganizations();
-  }, [hydrateOrganizations]);
-
-  useEffect(() => {
-    const sortedUsers = [...users].sort((a, b) => roleWeight(b.role) - roleWeight(a.role));
-
-    setActiveUserByOrg((prev) => {
-      let changed = false;
-      const next = { ...prev };
-
-      for (const organization of organizations) {
-        if (next[organization.id]) {
-          continue;
-        }
-
-        const first = sortedUsers.find((user) => user.orgId === organization.id && user.active);
-        next[organization.id] = first?.id;
-        changed = true;
-      }
-
-      if (changed) {
-        saveActiveUserByOrg(next);
-        return next;
-      }
-
-      return prev;
-    });
-  }, [organizations, users]);
+  }, [hydrateOrganizations, isAuthenticated]);
 
   const getOrganizationBySlug = (slug: string) => organizations.find((org) => org.slug === slug);
   const getOrganizationBySubdomain = (subdomain: string) =>
@@ -410,13 +356,10 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const setActiveUserForOrg = (orgId: string, userId: string) => {
-    setActiveUserByOrg((prev) => {
-      const next = { ...prev, [orgId]: userId };
-      saveActiveUserByOrg(next);
-      return next;
-    });
-  };
+  const getOrgCurrentUser = useCallback(
+    (orgId: string) => users.find((u) => u.orgId === orgId && u.authUserId === authUserId),
+    [users, authUserId],
+  );
 
   const updateOrganization = async (orgId: string, updates: Partial<Organization>) => {
     const current = organizations.find((org) => org.id === orgId);
@@ -450,7 +393,6 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
     programs,
     bundles: suiteBundles,
     users,
-    activeUserByOrg,
     isLoading,
     getOrganizationBySlug,
     getOrganizationBySubdomain,
@@ -459,11 +401,11 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
     isSubdomainAvailable,
     getUsersForOrganization,
     getOrganizationPrograms,
+    getOrgCurrentUser,
     getProgramsForUser,
     inviteUser,
     createOrganization,
     updateUser,
-    setActiveUserForOrg,
     updateOrganization,
     setOrganizationPrograms,
   };

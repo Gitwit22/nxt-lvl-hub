@@ -4,6 +4,7 @@ import { orgUserRoles } from "../models/org-user.model.js";
 const orgUserInputSchema = z.object({
   id: z.string().trim().optional(),
   orgId: z.string().trim().optional(),
+  authUserId: z.string().trim().nullable().optional(),
   name: z.string().trim().min(1, "User name is required."),
   email: z.string().trim().email("A valid email is required."),
   role: z.enum(orgUserRoles),

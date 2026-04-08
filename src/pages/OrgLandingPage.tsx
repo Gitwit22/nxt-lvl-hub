@@ -12,8 +12,7 @@ export default function OrgLandingPage() {
     getUsersForOrganization,
     getOrganizationPrograms,
     getProgramsForUser,
-    activeUserByOrg,
-    setActiveUserForOrg,
+    getOrgCurrentUser,
   } = useOrgPortal();
 
   const org = getOrganizationBySlug(orgSlug);
@@ -25,7 +24,7 @@ export default function OrgLandingPage() {
 
   const orgPrograms = getOrganizationPrograms(org);
   const activeUsers = users.filter((user) => user.active);
-  const currentUser = users.find((user) => user.id === activeUserByOrg[org.id]) ?? activeUsers[0];
+  const currentUser = getOrgCurrentUser(org.id);
   const visiblePrograms = currentUser ? getProgramsForUser(org, currentUser.id) : [];
 
   return (
@@ -33,10 +32,8 @@ export default function OrgLandingPage() {
       <OrgPortalHeader
         organization={org}
         currentUser={currentUser}
-        selectableUsers={activeUsers}
         activeProgramsCount={orgPrograms.length}
         activeUsersCount={activeUsers.length}
-        onChangeActiveUser={(userId) => setActiveUserForOrg(org.id, userId)}
       />
 
       <section className="grid gap-4 lg:grid-cols-3">

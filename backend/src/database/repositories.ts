@@ -1,3 +1,4 @@
+import type { AuthUserRecord } from "../models/auth.model.js";
 import type { OrganizationRecord } from "../models/organization.model.js";
 import type { OrgUserRecord } from "../models/org-user.model.js";
 import type { ProgramRecord } from "../models/program.model.js";
@@ -96,6 +97,28 @@ export class OrgUserRepository {
     return users.find((user) => user.id === id) || null;
   }
 
+  async findByAuthUserId(partitionKey: string, authUserId: string, orgId: string) {
+    const users = await this.list(partitionKey);
+    return users.find((u) => u.authUserId === authUserId && u.orgId === orgId) || null;
+  }
+
+  async listByAuthUserId(partitionKey: string, authUserId: string) {
+    const users = await this.list(partitionKey);
+    return users.filter((u) => u.authUserId === authUserId && !u.deletedAt);
+  }
+
+  async linkAuthUser(partitionKey: string, email: string, authUserId: string) {
+    const normalized = email.trim().toLowerCase();
+    await jsonStore.updatePartition(partitionKey, (state) => ({
+      ...state,
+      users: state.users.map((u) =>
+        u.email.toLowerCase() === normalized && !u.authUserId
+          ? { ...u, authUserId, updatedAt: new Date().toISOString() }
+          : u,
+      ),
+    }));
+  }
+
   async create(partitionKey: string, user: OrgUserRecord) {
     await jsonStore.updatePartition(partitionKey, (state) => ({
       ...state,
@@ -124,6 +147,47 @@ export class OrgUserRepository {
   }
 }
 
+export class AuthUserRepository {
+  async list(partitionKey: string) {
+    const state = await jsonStore.getPartitionState(partitionKey);
+    return state.authUsers;
+  }
+
+  async findById(partitionKey: string, id: string) {
+    const users = await this.list(partitionKey);
+    return users.find((u) => u.id === id) || null;
+  }
+
+  async findByEmail(partitionKey: string, email: string) {
+    const users = await this.list(partitionKey);
+    return users.find((u) => u.email.toLowerCase() === email.toLowerCase()) || null;
+  }
+
+  async create(partitionKey: string, user: AuthUserRecord) {
+    await jsonStore.updatePartition(partitionKey, (state) => ({
+      ...state,
+      authUsers: [...state.authUsers, user],
+    }));
+    return user;
+  }
+
+  async update(partitionKey: string, id: string, updater: (u: AuthUserRecord) => AuthUserRecord) {
+    let updated: AuthUserRecord | null = null;
+
+    await jsonStore.updatePartition(partitionKey, (state) => ({
+      ...state,
+      authUsers: state.authUsers.map((u) => {
+        if (u.id !== id) return u;
+        updated = updater(u);
+        return updated;
+      }),
+    }));
+
+    return updated;
+  }
+}
+
 export const programRepository = new ProgramRepository();
 export const organizationRepository = new OrganizationRepository();
 export const orgUserRepository = new OrgUserRepository();
+export const authUserRepository = new AuthUserRepository();

@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useParams } from "react-router-dom";
 import { canManageUsers, useOrgPortal } from "@/context/OrgPortalContext";
 import { Button } from "@/components/ui/button";
@@ -9,15 +9,13 @@ export default function OrgSettingsPage() {
   const { orgSlug = "" } = useParams();
   const {
     getOrganizationBySlug,
-    getUsersForOrganization,
     getOrganizationPrograms,
     bundles,
-    activeUserByOrg,
+    getOrgCurrentUser,
     updateOrganization,
   } = useOrgPortal();
 
   const org = getOrganizationBySlug(orgSlug);
-  const users = useMemo(() => (org ? getUsersForOrganization(org.id) : []), [getUsersForOrganization, org]);
 
   const [name, setName] = useState(org?.name ?? "");
   const [logo, setLogo] = useState(org?.logo ?? "");
@@ -29,7 +27,7 @@ export default function OrgSettingsPage() {
     return <p className="text-sm text-muted-foreground">Unknown organization.</p>;
   }
 
-  const currentUser = users.find((user) => user.id === activeUserByOrg[org.id]) ?? users[0];
+  const currentUser = getOrgCurrentUser(org.id);
   const canManage = currentUser ? canManageUsers(currentUser.role) : false;
   const enabledPrograms = getOrganizationPrograms(org);
   const assignedBundles = bundles.filter((bundle) => org.assignedBundleIds.includes(bundle.id));

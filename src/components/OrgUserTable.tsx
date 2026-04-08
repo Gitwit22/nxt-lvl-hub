@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { OrgRole, PortalUser, SuiteProgram } from "@/types/orgPortal";
+import { OrgRole, PortalUser, SuiteProgram, orgRoleLabels } from "@/types/orgPortal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,7 +17,7 @@ interface OrgUserTableProps {
   onUpdateUser: (userId: string, updates: Partial<PortalUser>) => Promise<void>;
 }
 
-const roleOptions: OrgRole[] = ["Super Admin", "Org Admin", "Manager", "Staff"];
+const roleOptions: OrgRole[] = ["super_admin", "org_admin", "manager", "staff"];
 
 export function OrgUserTable({ users, programs, canManage, onUpdateUser }: OrgUserTableProps) {
   const [editingUser, setEditingUser] = useState<PortalUser | null>(null);
@@ -86,7 +86,7 @@ export function OrgUserTable({ users, programs, canManage, onUpdateUser }: OrgUs
                     <SelectContent>
                       {roleOptions.map((role) => (
                         <SelectItem key={role} value={role}>
-                          {role}
+                          {orgRoleLabels[role]}
                         </SelectItem>
                       ))}
                     </SelectContent>

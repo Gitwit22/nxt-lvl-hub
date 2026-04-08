@@ -1,24 +1,19 @@
-import { Organization, PortalUser } from "@/types/orgPortal";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Organization, PortalUser, orgRoleLabels } from "@/types/orgPortal";
 import { Badge } from "@/components/ui/badge";
 import { Users, LayoutGrid, ShieldCheck } from "lucide-react";
 
 interface OrgPortalHeaderProps {
   organization: Organization;
   currentUser?: PortalUser;
-  selectableUsers: PortalUser[];
   activeProgramsCount: number;
   activeUsersCount: number;
-  onChangeActiveUser: (userId: string) => void;
 }
 
 export function OrgPortalHeader({
   organization,
   currentUser,
-  selectableUsers,
   activeProgramsCount,
   activeUsersCount,
-  onChangeActiveUser,
 }: OrgPortalHeaderProps) {
   return (
     <section className="rounded-xl border border-border bg-card/80 p-6 md:p-8 backdrop-blur-sm">
@@ -48,28 +43,20 @@ export function OrgPortalHeader({
               {currentUser && (
                 <Badge variant="outline" className="gap-1.5">
                   <ShieldCheck className="h-3.5 w-3.5" />
-                  {currentUser.role}
+                  {orgRoleLabels[currentUser.role] ?? currentUser.role}
                 </Badge>
               )}
             </div>
           </div>
         </div>
 
-        <div className="w-full max-w-xs rounded-lg border border-border bg-background/70 p-3">
-          <p className="mb-2 text-xs font-medium text-muted-foreground">Viewing Portal As</p>
-          <Select value={currentUser?.id} onValueChange={onChangeActiveUser}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select a user" />
-            </SelectTrigger>
-            <SelectContent>
-              {selectableUsers.map((user) => (
-                <SelectItem key={user.id} value={user.id}>
-                  {user.name} ({user.role})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {currentUser && (
+          <div className="w-full max-w-xs rounded-lg border border-border bg-background/70 p-3">
+            <p className="mb-1 text-xs font-medium text-muted-foreground">Signed in as</p>
+            <p className="text-sm font-semibold text-foreground">{currentUser.name}</p>
+            <p className="text-xs text-muted-foreground">{currentUser.email}</p>
+          </div>
+        )}
       </div>
     </section>
   );

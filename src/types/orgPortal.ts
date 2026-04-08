@@ -1,4 +1,11 @@
-export type OrgRole = "Super Admin" | "Org Admin" | "Manager" | "Staff";
+export type OrgRole = "super_admin" | "org_admin" | "manager" | "staff";
+
+export const orgRoleLabels: Record<OrgRole, string> = {
+  super_admin: "Super Admin",
+  org_admin: "Org Admin",
+  manager: "Manager",
+  staff: "Staff",
+};
 
 export type PortalProgramStatus = "active" | "beta" | "maintenance" | "coming-soon";
 export type OrganizationStatus = "active" | "suspended" | "trial";
@@ -55,6 +62,7 @@ export interface PortalUser {
   role: OrgRole;
   active: boolean;
   assignedProgramIds: string[];
+  authUserId?: string | null;
 }
 
 export interface SuiteProgram {

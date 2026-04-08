@@ -12,20 +12,68 @@ type ApiEnvelope<T> = {
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 const APP_PARTITION = (import.meta.env.VITE_APP_PARTITION || "nxt-lvl-hub").trim().toLowerCase();
 
+// ─── Access-token store ───────────────────────────────────────────────────────
+let _accessToken: string | null = null;
+let _authErrorCallback: (() => void) | null = null;
+
+export function setAccessToken(token: string | null) {
+  _accessToken = token;
+}
+
+export function getAccessToken() {
+  return _accessToken;
+}
+
+export function setAuthErrorCallback(cb: () => void) {
+  _authErrorCallback = cb;
+}
+
+// ─── Low-level refresh (avoids circular dependency with apiRequest) ───────────
+async function doRefresh(): Promise<{ accessToken: string; expiresIn: number } | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", "x-app-partition": APP_PARTITION },
+    });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as ApiEnvelope<{ accessToken: string; expiresIn: number }>;
+    return payload.success ? payload.data : null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Core request helper ──────────────────────────────────────────────────────
 function toApiUrl(path: string) {
   return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function apiRequest<T>(path: string, init: RequestInit = {}, _retry = true): Promise<T> {
   const isFormData = init.body instanceof FormData;
+  const headers: Record<string, string> = {
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
+    "x-app-partition": APP_PARTITION,
+    ...(init.headers as Record<string, string> | undefined ?? {}),
+  };
+  if (_accessToken) {
+    headers["Authorization"] = `Bearer ${_accessToken}`;
+  }
+
   const response = await fetch(toApiUrl(path), {
     ...init,
-    headers: {
-      ...(isFormData ? {} : { "Content-Type": "application/json" }),
-      "x-app-partition": APP_PARTITION,
-      ...(init.headers || {}),
-    },
+    credentials: "include",
+    headers,
   });
+
+  if (response.status === 401 && _retry && !path.startsWith("/api/auth/")) {
+    const refreshed = await doRefresh();
+    if (refreshed) {
+      _accessToken = refreshed.accessToken;
+      return apiRequest<T>(path, init, false);
+    }
+    _authErrorCallback?.();
+  }
 
   const payload = (await response.json()) as ApiEnvelope<T>;
 
@@ -34,6 +82,50 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   return payload.data;
+}
+
+// ─── Auth API ─────────────────────────────────────────────────────────────────
+export interface MeResponse {
+  id: string;
+  email: string;
+  isPlatformAdmin: boolean;
+  orgMemberships: Array<{
+    orgId: string;
+    orgName: string;
+    role: string;
+    active: boolean;
+  }>;
+}
+
+export interface AuthTokenResponse {
+  accessToken: string;
+  expiresIn: number;
+}
+
+export async function loginApi(email: string, password: string): Promise<AuthTokenResponse> {
+  return apiRequest<AuthTokenResponse>("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export async function registerApi(email: string, password: string, setupToken?: string): Promise<AuthTokenResponse> {
+  return apiRequest<AuthTokenResponse>("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify({ email, password, ...(setupToken ? { setupToken } : {}) }),
+  });
+}
+
+export async function logoutApi(): Promise<void> {
+  await apiRequest<void>("/api/auth/logout", { method: "POST" });
+}
+
+export async function refreshToken(): Promise<AuthTokenResponse | null> {
+  return doRefresh();
+}
+
+export async function meApi(): Promise<MeResponse> {
+  return apiRequest<MeResponse>("/api/auth/me");
 }
 
 export function getErrorMessage(error: unknown) {

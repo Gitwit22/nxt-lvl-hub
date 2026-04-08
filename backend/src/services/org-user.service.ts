@@ -32,6 +32,7 @@ export class OrgUserService {
       role: data.role,
       active: data.active ?? true,
       assignedProgramIds: data.assignedProgramIds || [],
+      authUserId: data.authUserId ?? null,
       createdAt: now,
       updatedAt: now,
       deletedAt: null,

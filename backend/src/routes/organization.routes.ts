@@ -12,6 +12,7 @@ import {
   updateOrganization,
 } from "../controllers/organization.controller.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { platformAdminMiddleware } from "../middleware/auth.js";
 import { orgAccessMiddleware } from "../middleware/org-access.js";
 import { rateLimitMiddleware } from "../middleware/rate-limit.js";
 import { roleCheckMiddleware } from "../middleware/role-check.js";
@@ -33,22 +34,25 @@ export const organizationRouter = Router();
 organizationRouter.use(rateLimitMiddleware);
 organizationRouter.use(authMiddleware);
 
+// List orgs: platform admin sees all; org users see their own (handled by service filtering later).
 organizationRouter.get("/orgs", validateRequest(listOrganizationsSchema), asyncHandler(listOrganizations));
-organizationRouter.get("/orgs/:id", orgAccessMiddleware, asyncHandler(getOrganization));
-organizationRouter.post("/orgs", roleCheckMiddleware(["owner", "admin"]), validateRequest(createOrganizationSchema), asyncHandler(createOrganization));
-organizationRouter.put("/orgs/:id", orgAccessMiddleware, validateRequest(updateOrganizationSchema), asyncHandler(updateOrganization));
-organizationRouter.delete("/orgs/:id", orgAccessMiddleware, asyncHandler(deleteOrganization));
+organizationRouter.get("/orgs/:orgId", orgAccessMiddleware, asyncHandler(getOrganization));
+organizationRouter.post("/orgs", platformAdminMiddleware, validateRequest(createOrganizationSchema), asyncHandler(createOrganization));
+organizationRouter.put("/orgs/:orgId", orgAccessMiddleware, roleCheckMiddleware(["super_admin", "org_admin"]), validateRequest(updateOrganizationSchema), asyncHandler(updateOrganization));
+organizationRouter.delete("/orgs/:orgId", platformAdminMiddleware, asyncHandler(deleteOrganization));
 
 organizationRouter.get("/orgs/:orgId/users", orgAccessMiddleware, validateRequest(listOrgUsersSchema), asyncHandler(listOrgUsers));
 organizationRouter.post(
   "/orgs/:orgId/users",
   orgAccessMiddleware,
+  roleCheckMiddleware(["super_admin", "org_admin"]),
   validateRequest(createOrgUserSchema),
   asyncHandler(createOrgUser),
 );
 organizationRouter.put(
   "/orgs/:orgId/users/:userId",
   orgAccessMiddleware,
+  roleCheckMiddleware(["super_admin", "org_admin"]),
   validateRequest(updateOrgUserSchema),
   asyncHandler(updateOrgUser),
 );

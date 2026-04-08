@@ -22,7 +22,7 @@ export async function listOrganizations(request: Request, response: Response) {
 
 export async function getOrganization(request: Request, response: Response) {
   const partitionKey = getRequestPartition(request);
-  const organization = await organizationService.getById(partitionKey, getRouteId(request.params.id));
+  const organization = await organizationService.getById(partitionKey, getRouteId(request.params.orgId));
   return sendSuccess(response, organization, "Organization retrieved.");
 }
 
@@ -34,12 +34,12 @@ export async function createOrganization(request: Request, response: Response) {
 
 export async function updateOrganization(request: Request, response: Response) {
   const partitionKey = getRequestPartition(request);
-  const organization = await organizationService.update(partitionKey, getRouteId(request.params.id), request.body);
+  const organization = await organizationService.update(partitionKey, getRouteId(request.params.orgId), request.body);
   return sendSuccess(response, organization, "Organization updated.");
 }
 
 export async function deleteOrganization(request: Request, response: Response) {
   const partitionKey = getRequestPartition(request);
-  const organization = await organizationService.remove(partitionKey, getRouteId(request.params.id));
+  const organization = await organizationService.remove(partitionKey, getRouteId(request.params.orgId));
   return sendSuccess(response, organization, "Organization deleted.");
 }

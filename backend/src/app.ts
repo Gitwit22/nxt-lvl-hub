@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
+import cookieParser from "cookie-parser";
 import fs from "node:fs";
 import path from "node:path";
 import { apiRouter } from "./routes/index.js";
@@ -26,6 +27,7 @@ export function createApp() {
   app.use(morgan("dev"));
   app.use(express.json({ limit: "2mb" }));
   app.use(express.urlencoded({ extended: true }));
+  app.use(cookieParser());
   app.use("/uploads", express.static(path.resolve(env.uploadPath)));
   app.use("/api", apiRouter);
 
