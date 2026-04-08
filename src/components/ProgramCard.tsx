@@ -1,6 +1,7 @@
 import { Program } from "@/types/program";
 import { Screw } from "@/components/Screw";
 import { StatusLED } from "@/components/StatusLED";
+import { ProgramLogo } from "@/components/ProgramLogo";
 import { ExternalLink, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -37,12 +38,7 @@ export function ProgramCard({ program, compact }: ProgramCardProps) {
       <div className="px-2">
         {/* Header row */}
         <div className="flex items-center justify-between mb-3 mt-1">
-          <div
-            className="w-9 h-9 rounded metal-raised flex items-center justify-center font-mono font-bold text-sm shrink-0"
-            style={program.accentColor ? { color: `hsl(${program.accentColor})` } : {}}
-          >
-            {program.name.charAt(0)}
-          </div>
+          <ProgramLogo name={program.name} logoUrl={program.logoUrl} accentColor={program.accentColor} className="w-9 h-9" textClassName="text-sm" />
           <StatusLED status={program.status} />
         </div>
 

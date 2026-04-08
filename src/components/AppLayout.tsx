@@ -1,7 +1,8 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
+import { Outlet } from "react-router-dom";
 
-export function AppLayout({ children }: { children: React.ReactNode }) {
+export function AppLayout({ children }: { children?: React.ReactNode }) {
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
@@ -11,7 +12,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <SidebarTrigger className="mr-4" />
             <span className="stamped-label text-[10px]">Nxt Lvl Suites — Control Panel</span>
           </header>
-          <main className="flex-1 overflow-auto">{children}</main>
+          <main className="flex-1 overflow-auto">{children ?? <Outlet />}</main>
         </div>
       </div>
     </SidebarProvider>

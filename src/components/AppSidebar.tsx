@@ -1,4 +1,4 @@
-import { Home, LayoutGrid, Info, Settings } from "lucide-react";
+import { LayoutGrid, Info, Settings } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/sidebar";
 
 const navItems = [
-  { title: "Home", url: "/", icon: Home },
   { title: "Applications", url: "/applications", icon: LayoutGrid },
   { title: "About", url: "/about", icon: Info },
   { title: "Admin", url: "/admin", icon: Settings },
@@ -45,7 +44,7 @@ export function AppSidebar() {
                   <SidebarMenuButton asChild>
                     <NavLink
                       to={item.url}
-                      end={item.url === "/"}
+                      end={false}
                       className="hover:bg-sidebar-accent/50 font-mono text-xs tracking-wide"
                       activeClassName="bg-sidebar-accent text-primary font-medium"
                     >

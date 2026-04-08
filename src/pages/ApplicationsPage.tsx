@@ -4,8 +4,10 @@ import { ProgramCard } from "@/components/ProgramCard";
 import { Screw } from "@/components/Screw";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Search, Sparkles } from "lucide-react";
 import { CATEGORIES, ProgramStatus } from "@/types/program";
+import { useNavigate } from "react-router-dom";
 
 const statuses: { value: ProgramStatus | "all"; label: string }[] = [
   { value: "all", label: "All Statuses" },
@@ -18,6 +20,7 @@ const statuses: { value: ProgramStatus | "all"; label: string }[] = [
 
 export default function ApplicationsPage() {
   const { programs } = usePrograms();
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [status, setStatus] = useState("all");
@@ -30,6 +33,8 @@ export default function ApplicationsPage() {
       .filter((p) => status === "all" || p.status === status)
       .sort((a, b) => a.displayOrder - b.displayOrder);
   }, [programs, search, category, status]);
+
+  const hasPrograms = programs.length > 0;
 
   return (
     <div className="p-6 md:p-10 max-w-6xl mx-auto space-y-8">
@@ -82,8 +87,26 @@ export default function ApplicationsPage() {
           ))}
         </div>
       ) : (
-        <div className="metal-panel rounded-lg p-16 text-center">
-          <p className="stamped-label text-xs">No programs match your filters.</p>
+        <div className="metal-panel rounded-lg p-12 md:p-16 text-center relative">
+          <Screw className="absolute top-2.5 left-2.5" />
+          <Screw className="absolute top-2.5 right-2.5" />
+          <div className="mx-auto h-12 w-12 rounded-full metal-raised flex items-center justify-center mb-4">
+            <Sparkles className="h-5 w-5 text-primary" />
+          </div>
+          {hasPrograms ? (
+            <>
+              <p className="stamped-label text-xs">No programs match your filters.</p>
+              <p className="text-xs text-muted-foreground mt-2 font-mono">Try adjusting search, category, or status.</p>
+            </>
+          ) : (
+            <>
+              <p className="stamped-label text-xs">No programs added yet.</p>
+              <p className="text-xs text-muted-foreground mt-2 font-mono">Create your first program to start building the suite.</p>
+              <Button size="sm" className="mt-5" onClick={() => navigate("/admin")}>
+                Open Program Manager
+              </Button>
+            </>
+          )}
         </div>
       )}
     </div>

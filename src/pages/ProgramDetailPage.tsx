@@ -2,6 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { usePrograms } from "@/context/ProgramContext";
 import { StatusLED } from "@/components/StatusLED";
 import { Screw } from "@/components/Screw";
+import { ProgramLogo } from "@/components/ProgramLogo";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ExternalLink, ArrowRight } from "lucide-react";
 
@@ -23,6 +24,7 @@ export default function ProgramDetailPage() {
   }
 
   const isLaunchable = program.status === "live" || program.status === "beta" || program.status === "internal";
+  const launchDestination = program.type === "external" ? program.externalUrl : program.internalRoute;
 
   const handleLaunch = () => {
     if (!isLaunchable) return;
@@ -47,12 +49,7 @@ export default function ProgramDetailPage() {
 
         {/* Header */}
         <div className="flex items-start gap-4 px-2">
-          <div
-            className="w-12 h-12 rounded metal-raised flex items-center justify-center text-xl font-mono font-bold shrink-0"
-            style={program.accentColor ? { color: `hsl(${program.accentColor})` } : {}}
-          >
-            {program.name.charAt(0)}
-          </div>
+          <ProgramLogo name={program.name} logoUrl={program.logoUrl} accentColor={program.accentColor} className="w-14 h-14" textClassName="text-xl" />
           <div className="flex-1 min-w-0">
             <h1 className="text-xl font-mono font-bold">{program.name}</h1>
             <div className="flex items-center gap-3 mt-2 flex-wrap">
@@ -61,6 +58,16 @@ export default function ProgramDetailPage() {
               <span className="stamped-label text-[9px]">{program.origin === "suite-native" ? "Suite Native" : "External Partner"}</span>
             </div>
           </div>
+        </div>
+
+        {/* Launch destination */}
+        <div className="metal-raised rounded-lg p-5 relative">
+          <Screw className="absolute top-2 left-2" />
+          <Screw className="absolute top-2 right-2" />
+          <h3 className="stamped-label text-[9px] mb-2">Launch Destination</h3>
+          <p className="text-xs text-muted-foreground font-mono break-all">
+            {launchDestination || "Not configured"}
+          </p>
         </div>
 
         {/* Description */}
@@ -88,7 +95,7 @@ export default function ProgramDetailPage() {
         {/* Specs grid */}
         <div className="grid grid-cols-2 gap-3">
           {[
-            ["Type", program.type],
+            ["Type", program.type === "external" ? "External" : "Internal"],
             ["Login Required", program.requiresLogin ? "Yes" : "No"],
             ["Approval Required", program.requiresApproval ? "Yes" : "No"],
             ["Visibility", program.isPublic ? "Public" : "Private"],
