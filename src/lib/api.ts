@@ -1,6 +1,7 @@
 import type { Organization } from "@/types/orgPortal";
 import type { PortalUser } from "@/types/orgPortal";
 import type { Program } from "@/types/program";
+import { PROGRAM_DOMAIN } from "@/config/program";
 
 type ApiEnvelope<T> = {
   success: boolean;
@@ -10,7 +11,7 @@ type ApiEnvelope<T> = {
 };
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
-const APP_PARTITION = (import.meta.env.VITE_APP_PARTITION || "nxt-lvl-hub").trim().toLowerCase();
+const APP_PARTITION = PROGRAM_DOMAIN;
 const REQUEST_TIMEOUT_MS = 12000;
 
 // ─── Access-token store ───────────────────────────────────────────────────────
