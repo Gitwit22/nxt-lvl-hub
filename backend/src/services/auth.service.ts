@@ -139,6 +139,38 @@ export class AuthService {
   }
 
   async getMe(authUserId: string, partition: string): Promise<MeResponse> {
+    // Try Prisma first (new org-based model)
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: authUserId },
+        include: {
+          memberships: {
+            include: { organization: true },
+            where: { organization: { isActive: true } },
+          },
+        },
+      });
+
+      if (user && user.isActive) {
+        const orgMemberships = user.memberships.map((m) => ({
+          orgId: m.organizationId,
+          orgName: m.organization.name,
+          role: m.role,
+          active: true,
+        }));
+
+        return {
+          id: user.id,
+          email: user.email,
+          isPlatformAdmin: false,
+          orgMemberships,
+        };
+      }
+    } catch {
+      // Fall through to legacy lookup
+    }
+
+    // Fallback to legacy JSON store
     const user = await authUserRepository.findById(partition, authUserId);
     if (!user || user.deletedAt) {
       throw new AppError("Account not found.", 401);

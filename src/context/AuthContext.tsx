@@ -58,9 +58,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (tokens: AuthTokenResponse) => {
       setAccessToken(tokens.accessToken);
       scheduleRefresh(tokens.expiresIn);
-      const profile = await meApi();
-      setMe(profile);
-      setIsAuthenticated(true);
+      try {
+        const profile = await meApi();
+        setMe(profile);
+        setIsAuthenticated(true);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to load profile after login";
+        console.error("Post-login bootstrap failed at meApi:", msg);
+        setAccessToken(null);
+        throw new Error(`Login succeeded but profile load failed: ${msg}`);
+      }
     },
     [scheduleRefresh],
   );
@@ -91,8 +98,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const tokens = await loginApi(email, password);
-      await handleAuthSuccess(tokens);
+      try {
+        const tokens = await loginApi(email, password);
+        await handleAuthSuccess(tokens);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Login failed";
+        console.error("Login error:", msg);
+        throw err;
+      }
     },
     [handleAuthSuccess],
   );
