@@ -47,15 +47,25 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, tim
 // ─── Low-level refresh (avoids circular dependency with apiRequest) ───────────
 async function doRefresh(): Promise<{ accessToken: string; expiresIn: number } | null> {
   try {
+    console.log("[auth] doRefresh: calling POST /api/auth/refresh");
     const response = await fetchWithTimeout(`${API_BASE_URL}/api/auth/refresh`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json", "x-app-partition": APP_PARTITION },
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.warn(`[auth] doRefresh: ${response.status} ${response.statusText}`);
+      return null;
+    }
     const payload = (await response.json()) as ApiEnvelope<{ accessToken: string; expiresIn: number }>;
-    return payload.success ? payload.data : null;
-  } catch {
+    if (!payload.success) {
+      console.warn(`[auth] doRefresh: API returned success=false`);
+      return null;
+    }
+    console.log("[auth] doRefresh: success");
+    return payload.data;
+  } catch (err) {
+    console.error("[auth] doRefresh error:", err);
     return null;
   }
 }
@@ -83,17 +93,21 @@ async function apiRequest<T>(path: string, init: RequestInit = {}, _retry = true
   });
 
   if (response.status === 401 && _retry && !path.startsWith("/api/auth/")) {
+    console.warn(`[auth] 401 on ${path}, attempting refresh...`);
     const refreshed = await doRefresh();
     if (refreshed) {
       _accessToken = refreshed.accessToken;
+      console.log(`[auth] refresh succeeded, retrying ${path}`);
       return apiRequest<T>(path, init, false);
     }
+    console.error(`[auth] refresh failed, clearing session`);
     _authErrorCallback?.();
   }
 
   const payload = (await response.json()) as ApiEnvelope<T>;
 
   if (!response.ok || !payload.success) {
+    console.error(`[api] ${response.status} ${path}: ${payload.error || payload.message}`);
     throw new Error(payload.error || payload.message || "Request failed.");
   }
 

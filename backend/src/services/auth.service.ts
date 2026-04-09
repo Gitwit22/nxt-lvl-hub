@@ -256,9 +256,10 @@ export class AuthService {
     } as Parameters<typeof jwt.sign>[2]);
 
     const decoded = jwt.decode(accessToken) as { exp: number };
+    const expiresInSeconds = Math.floor(decoded.exp - Date.now() / 1000);
 
     return {
-      tokens: { accessToken, expiresIn: decoded.exp },
+      tokens: { accessToken, expiresIn: expiresInSeconds },
       refreshToken,
     };
   }
@@ -291,9 +292,10 @@ export class AuthService {
     } as Parameters<typeof jwt.sign>[2]);
 
     const decoded = jwt.decode(accessToken) as { exp: number };
+    const expiresInSeconds = Math.floor(decoded.exp - Date.now() / 1000);
 
     return {
-      tokens: { accessToken, expiresIn: decoded.exp },
+      tokens: { accessToken, expiresIn: expiresInSeconds },
       refreshToken,
     };
   }

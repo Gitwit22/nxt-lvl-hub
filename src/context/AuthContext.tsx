@@ -56,15 +56,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const handleAuthSuccess = useCallback(
     async (tokens: AuthTokenResponse) => {
+      console.log("[auth] handleAuthSuccess: storing token, expiresIn =", tokens.expiresIn);
       setAccessToken(tokens.accessToken);
       scheduleRefresh(tokens.expiresIn);
       try {
+        console.log("[auth] handleAuthSuccess: calling meApi()");
         const profile = await meApi();
+        console.log("[auth] handleAuthSuccess: meApi succeeded, setting profile");
         setMe(profile);
         setIsAuthenticated(true);
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Failed to load profile after login";
-        console.error("Post-login bootstrap failed at meApi:", msg);
+        console.error("[auth] handleAuthSuccess: meApi failed:", msg);
         setAccessToken(null);
         throw new Error(`Login succeeded but profile load failed: ${msg}`);
       }
@@ -75,9 +78,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // On mount: attempt to restore session via httpOnly refresh cookie
   useEffect(() => {
     void (async () => {
+      console.log("[auth] mount: attempting to restore session via refresh cookie");
       const result = await refreshToken();
       if (result) {
+        console.log("[auth] mount: refresh succeeded, loading profile");
         await handleAuthSuccess(result);
+      } else {
+        console.log("[auth] mount: no refresh cookie, starting unauthenticated");
       }
       setIsInitializing(false);
     })();
@@ -99,11 +106,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(
     async (email: string, password: string) => {
       try {
+        console.log("[auth] login: calling loginApi");
         const tokens = await loginApi(email, password);
+        console.log("[auth] login: loginApi returned, calling handleAuthSuccess");
         await handleAuthSuccess(tokens);
+        console.log("[auth] login: success");
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Login failed";
-        console.error("Login error:", msg);
+        console.error("[auth] login: error:", msg);
         throw err;
       }
     },
