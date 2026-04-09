@@ -13,6 +13,10 @@ type ApiEnvelope<T> = {
 type ApiRecord = Record<string, unknown>;
 
 const DEFAULT_HOSTED_API_BASE_URL = "https://community-chronicle.onrender.com";
+const COMPAT_PLATFORM_ADMIN_EMAILS = new Set([
+  "nxtlvltechllc@gmail.com",
+  "itstheplugllc@gmail.com",
+]);
 
 function getDefaultApiBaseUrl() {
   if (typeof window === "undefined") {
@@ -147,7 +151,14 @@ function normalizeMeResponse(payload: unknown): MeResponse {
 
   const id = typeof source.id === "string" ? source.id : "";
   const email = typeof source.email === "string" ? source.email : "";
-  const isPlatformAdmin = source.isPlatformAdmin === true;
+  const role = typeof source.role === "string" ? source.role.toLowerCase() : "member";
+  const isPlatformAdmin =
+    source.isPlatformAdmin === true ||
+    role === "admin" ||
+    role === "owner" ||
+    role === "super_admin" ||
+    role === "org_admin" ||
+    COMPAT_PLATFORM_ADMIN_EMAILS.has(email.toLowerCase());
 
   if (Array.isArray(source.orgMemberships)) {
     return {
@@ -168,8 +179,6 @@ function normalizeMeResponse(payload: unknown): MeResponse {
   }
 
   const organizationId = typeof source.organizationId === "string" ? source.organizationId : "";
-  const role = typeof source.role === "string" ? source.role : "member";
-
   return {
     id,
     email,

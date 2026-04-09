@@ -29,7 +29,7 @@ const queryClient = new QueryClient();
 
 function RootResolver() {
   const { organizations, isLoading } = useOrgPortal();
-  const { isAuthenticated, isPlatformAdmin, me } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   if (isLoading) {
     return (
@@ -52,24 +52,7 @@ function RootResolver() {
     return <Navigate to="/login" replace />;
   }
 
-  if (isPlatformAdmin) {
-    return <Navigate to="/admin/organizations" replace />;
-  }
-
-  if (isAuthenticated && !isPlatformAdmin) {
-    const primaryOrgId = me?.orgMemberships[0]?.orgId;
-    const organization = organizations.find((candidate) => candidate.id === primaryOrgId);
-
-    if (organization?.slug) {
-      return <Navigate to={`/org/${organization.slug}`} replace />;
-    }
-
-    if (organizations[0]?.slug) {
-      return <Navigate to={`/org/${organizations[0].slug}`} replace />;
-    }
-  }
-
-  return <Navigate to="/login" replace />;
+  return <Navigate to="/home" replace />;
 }
 
 const App = () => (
@@ -85,16 +68,19 @@ const App = () => (
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/" element={<RootResolver />} />
 
-                <Route element={<ProtectedRoute requirePlatformAdmin />}>
+                <Route element={<ProtectedRoute />}>
                   <Route element={<AppLayout />}>
                     <Route path="/home" element={<HomePage />} />
                     <Route path="/applications" element={<ApplicationsPage />} />
                     <Route path="/applications/:id" element={<ProgramDetailPage />} />
                     <Route path="/apps/:appSlug" element={<AppWorkspacePage />} />
                     <Route path="/about" element={<AboutPage />} />
-                    <Route path="/admin" element={<Navigate to="/admin/organizations" replace />} />
-                    <Route path="/admin/organizations" element={<AdminPage section="organizations" />} />
-                    <Route path="/admin/programs" element={<AdminPage section="programs" />} />
+
+                    <Route element={<ProtectedRoute requirePlatformAdmin />}>
+                      <Route path="/admin" element={<Navigate to="/admin/organizations" replace />} />
+                      <Route path="/admin/organizations" element={<AdminPage section="organizations" />} />
+                      <Route path="/admin/programs" element={<AdminPage section="programs" />} />
+                    </Route>
                   </Route>
                 </Route>
 

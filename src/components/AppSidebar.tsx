@@ -1,5 +1,6 @@
-import { Building2, Info, LayoutGrid, Users } from "lucide-react";
+import { Building2, Home, Info, LayoutGrid, Users } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
+import { useAuth } from "@/context/AuthContext";
 import {
   Sidebar,
   SidebarContent,
@@ -12,16 +13,21 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-const navItems = [
-  { title: "Applications", url: "/applications", icon: LayoutGrid },
-  { title: "Organizations", url: "/admin/organizations", icon: Users },
-  { title: "Program Control", url: "/admin/programs", icon: Building2 },
-  { title: "About", url: "/about", icon: Info },
-];
-
 export function AppSidebar() {
   const { state } = useSidebar();
+  const { isPlatformAdmin } = useAuth();
   const collapsed = state === "collapsed";
+  const navItems = [
+    { title: "Home", url: "/home", icon: Home },
+    { title: "Applications", url: "/applications", icon: LayoutGrid },
+    ...(isPlatformAdmin
+      ? [
+          { title: "Organizations", url: "/admin/organizations", icon: Users },
+          { title: "Program Control", url: "/admin/programs", icon: Building2 },
+        ]
+      : []),
+    { title: "About", url: "/about", icon: Info },
+  ];
 
   return (
     <Sidebar collapsible="icon">

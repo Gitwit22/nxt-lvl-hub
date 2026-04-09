@@ -2,7 +2,6 @@ import { FormEvent, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { listOrganizations } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,30 +28,7 @@ export default function LoginPage() {
       return from;
     }
 
-    if (profile.isPlatformAdmin) {
-      return "/admin/organizations";
-    }
-
-    const primaryOrgId = profile.orgMemberships[0]?.orgId;
-    if (!primaryOrgId) {
-      return "/";
-    }
-
-    try {
-      const organizations = await listOrganizations();
-      const organization = organizations.find((candidate) => candidate.id === primaryOrgId);
-      if (organization?.slug) {
-        return `/org/${organization.slug}`;
-      }
-
-      if (organizations[0]?.slug) {
-        return `/org/${organizations[0].slug}`;
-      }
-    } catch (err) {
-      console.error("[auth] login: failed to resolve organization route", err);
-    }
-
-    return "/";
+    return "/home";
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
