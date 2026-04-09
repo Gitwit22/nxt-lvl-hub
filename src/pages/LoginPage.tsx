@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { listOrganizations } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +11,7 @@ export default function LoginPage() {
   const { login, register } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname ?? "/admin/organizations";
+  const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname;
 
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
@@ -21,18 +22,47 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showSetupToken, setShowSetupToken] = useState(false);
 
+  const resolveDestination = async (profile: Awaited<ReturnType<typeof login>>) => {
+    if (from) {
+      return from;
+    }
+
+    if (profile.isPlatformAdmin) {
+      return "/admin/organizations";
+    }
+
+    const primaryOrgId = profile.orgMemberships[0]?.orgId;
+    if (!primaryOrgId) {
+      return "/";
+    }
+
+    try {
+      const organizations = await listOrganizations();
+      const organization = organizations.find((candidate) => candidate.id === primaryOrgId);
+      if (organization?.slug) {
+        return `/org/${organization.slug}`;
+      }
+    } catch (err) {
+      console.error("[auth] login: failed to resolve organization route", err);
+    }
+
+    return "/";
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
     setIsSubmitting(true);
 
     try {
-      if (mode === "login") {
-        await login(email, password);
-      } else {
-        await register(email, password, setupToken || undefined);
-      }
-      navigate(from, { replace: true });
+      const profile =
+        mode === "login"
+          ? await login(email, password)
+          : await register(email, password, setupToken || undefined);
+
+      const destination = await resolveDestination(profile);
+      console.log("[auth] login: navigating to", destination);
+      navigate(destination, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Authentication failed.");
     } finally {

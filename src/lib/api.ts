@@ -10,6 +10,8 @@ type ApiEnvelope<T> = {
   error: string | null;
 };
 
+type ApiRecord = Record<string, unknown>;
+
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 const APP_PARTITION = PROGRAM_DOMAIN;
 const REQUEST_TIMEOUT_MS = 12000;
@@ -44,6 +46,132 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, tim
   }
 }
 
+function isRecord(value: unknown): value is ApiRecord {
+  return typeof value === "object" && value !== null;
+}
+
+function isApiEnvelope<T>(value: unknown): value is ApiEnvelope<T> {
+  return isRecord(value) && typeof value.success === "boolean" && "data" in value;
+}
+
+function parseJsonResponse(text: string): unknown {
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text;
+  }
+}
+
+function getErrorFromPayload(payload: unknown, fallback: string) {
+  if (!isRecord(payload)) {
+    return fallback;
+  }
+
+  if (typeof payload.error === "string" && payload.error.length > 0) {
+    return payload.error;
+  }
+
+  if (typeof payload.message === "string" && payload.message.length > 0) {
+    return payload.message;
+  }
+
+  return fallback;
+}
+
+function unwrapApiPayload<T>(response: Response, payload: unknown, path: string): T {
+  if (isApiEnvelope<T>(payload)) {
+    if (!response.ok || !payload.success) {
+      const message = getErrorFromPayload(payload, `Request failed for ${path}.`);
+      console.error(`[api] ${response.status} ${path}: ${message}`);
+      throw new Error(message);
+    }
+
+    return payload.data;
+  }
+
+  if (!response.ok) {
+    const message = getErrorFromPayload(payload, `Request failed for ${path}.`);
+    console.error(`[api] ${response.status} ${path}: ${message}`);
+    throw new Error(message);
+  }
+
+  return payload as T;
+}
+
+function decodeJwtExpiresIn(accessToken: string) {
+  try {
+    const [, payload] = accessToken.split(".");
+    if (!payload) {
+      return 15 * 60;
+    }
+
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const decoded = JSON.parse(atob(padded)) as { exp?: number };
+
+    if (typeof decoded.exp === "number") {
+      return Math.max(Math.floor(decoded.exp - Date.now() / 1000), 0);
+    }
+  } catch {
+    // Ignore decode failures and fall back to a reasonable default.
+  }
+
+  return 15 * 60;
+}
+
+function normalizeMeResponse(payload: unknown): MeResponse {
+  const source = isRecord(payload) && isRecord(payload.user) ? payload.user : payload;
+
+  if (!isRecord(source)) {
+    throw new Error("Profile response was not an object.");
+  }
+
+  const id = typeof source.id === "string" ? source.id : "";
+  const email = typeof source.email === "string" ? source.email : "";
+  const isPlatformAdmin = source.isPlatformAdmin === true;
+
+  if (Array.isArray(source.orgMemberships)) {
+    return {
+      id,
+      email,
+      isPlatformAdmin,
+      orgMemberships: source.orgMemberships.map((membership) => {
+        const record = isRecord(membership) ? membership : {};
+
+        return {
+          orgId: typeof record.orgId === "string" ? record.orgId : "",
+          orgName: typeof record.orgName === "string" ? record.orgName : "Unknown",
+          role: typeof record.role === "string" ? record.role : "member",
+          active: record.active !== false,
+        };
+      }),
+    };
+  }
+
+  const organizationId = typeof source.organizationId === "string" ? source.organizationId : "";
+  const role = typeof source.role === "string" ? source.role : "member";
+
+  return {
+    id,
+    email,
+    isPlatformAdmin,
+    orgMemberships: organizationId
+      ? [
+          {
+            orgId: organizationId,
+            orgName: organizationId === "default-org" ? "Default Organization" : organizationId,
+            role,
+            active: true,
+          },
+        ]
+      : [],
+  };
+}
+
 // ─── Low-level refresh (avoids circular dependency with apiRequest) ───────────
 async function doRefresh(): Promise<{ accessToken: string; expiresIn: number } | null> {
   try {
@@ -57,13 +185,15 @@ async function doRefresh(): Promise<{ accessToken: string; expiresIn: number } |
       console.warn(`[auth] doRefresh: ${response.status} ${response.statusText}`);
       return null;
     }
-    const payload = (await response.json()) as ApiEnvelope<{ accessToken: string; expiresIn: number }>;
-    if (!payload.success) {
-      console.warn(`[auth] doRefresh: API returned success=false`);
-      return null;
-    }
+    const text = await response.text();
+    const payload = parseJsonResponse(text);
+    const data = unwrapApiPayload<unknown>(response, payload, "/api/auth/refresh");
+    const normalized = normalizeAuthResponse(data);
     console.log("[auth] doRefresh: success");
-    return payload.data;
+    return {
+      accessToken: normalized.accessToken,
+      expiresIn: normalized.expiresIn,
+    };
   } catch (err) {
     console.error("[auth] doRefresh error:", err);
     return null;
@@ -104,14 +234,9 @@ async function apiRequest<T>(path: string, init: RequestInit = {}, _retry = true
     _authErrorCallback?.();
   }
 
-  const payload = (await response.json()) as ApiEnvelope<T>;
-
-  if (!response.ok || !payload.success) {
-    console.error(`[api] ${response.status} ${path}: ${payload.error || payload.message}`);
-    throw new Error(payload.error || payload.message || "Request failed.");
-  }
-
-  return payload.data;
+  const text = response.status === 204 ? "" : await response.text();
+  const payload = parseJsonResponse(text);
+  return unwrapApiPayload<T>(response, payload, path);
 }
 
 // ─── Auth API ─────────────────────────────────────────────────────────────────
@@ -130,20 +255,65 @@ export interface MeResponse {
 export interface AuthTokenResponse {
   accessToken: string;
   expiresIn: number;
+  profile?: MeResponse;
+  appInitialized?: boolean;
+  appInitState?: string;
+}
+
+function normalizeAuthResponse(payload: unknown): AuthTokenResponse {
+  if (!isRecord(payload)) {
+    throw new Error("Authentication response was not an object.");
+  }
+
+  const nestedData = isRecord(payload.data) ? payload.data : undefined;
+  const nestedAuth = isRecord(payload.auth) ? payload.auth : undefined;
+  const nestedUser = isRecord(payload.user)
+    ? payload.user
+    : isRecord(nestedData?.user)
+      ? nestedData.user
+      : undefined;
+
+  const accessToken = [
+    payload.accessToken,
+    payload.token,
+    payload.authToken,
+    nestedAuth?.accessToken,
+    nestedAuth?.token,
+    nestedData?.accessToken,
+    nestedData?.token,
+  ].find((value): value is string => typeof value === "string" && value.length > 0);
+
+  if (!accessToken) {
+    throw new Error("Authentication response did not include an access token.");
+  }
+
+  const expiresIn = [payload.expiresIn, nestedData?.expiresIn].find(
+    (value): value is number => typeof value === "number" && Number.isFinite(value),
+  ) ?? decodeJwtExpiresIn(accessToken);
+
+  return {
+    accessToken,
+    expiresIn,
+    profile: nestedUser ? normalizeMeResponse({ user: nestedUser }) : undefined,
+    appInitialized: payload.appInitialized === true,
+    appInitState: typeof payload.appInitState === "string" ? payload.appInitState : undefined,
+  };
 }
 
 export async function loginApi(email: string, password: string): Promise<AuthTokenResponse> {
-  return apiRequest<AuthTokenResponse>("/api/auth/login", {
+  const payload = await apiRequest<unknown>("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
+  return normalizeAuthResponse(payload);
 }
 
 export async function registerApi(email: string, password: string, setupToken?: string): Promise<AuthTokenResponse> {
-  return apiRequest<AuthTokenResponse>("/api/auth/register", {
+  const payload = await apiRequest<unknown>("/api/auth/register", {
     method: "POST",
     body: JSON.stringify({ email, password, ...(setupToken ? { setupToken } : {}) }),
   });
+  return normalizeAuthResponse(payload);
 }
 
 export async function logoutApi(): Promise<void> {
@@ -155,14 +325,16 @@ export async function refreshToken(): Promise<AuthTokenResponse | null> {
 }
 
 export async function meApi(): Promise<MeResponse> {
-  return apiRequest<MeResponse>("/api/auth/me");
+  const payload = await apiRequest<unknown>("/api/auth/me");
+  return normalizeMeResponse(payload);
 }
 
 export async function bootstrapAdminApi(setupToken: string): Promise<AuthTokenResponse> {
-  return apiRequest<AuthTokenResponse>("/api/auth/bootstrap-admin", {
+  const payload = await apiRequest<unknown>("/api/auth/bootstrap-admin", {
     method: "POST",
     body: JSON.stringify({ setupToken }),
   });
+  return normalizeAuthResponse(payload);
 }
 
 export function getErrorMessage(error: unknown) {

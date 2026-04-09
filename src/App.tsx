@@ -10,6 +10,7 @@ import { OrgPortalLayout } from "@/components/OrgPortalLayout";
 import { AppLayout } from "@/components/AppLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { resolveOrgSlugFromHost } from "@/lib/orgRoutes";
+import { useAuth } from "@/context/AuthContext";
 import { useOrgPortal } from "@/context/OrgPortalContext";
 import HomePage from "@/pages/HomePage";
 import ApplicationsPage from "@/pages/ApplicationsPage";
@@ -28,6 +29,7 @@ const queryClient = new QueryClient();
 
 function RootResolver() {
   const { organizations, isLoading } = useOrgPortal();
+  const { isAuthenticated, isPlatformAdmin, me } = useAuth();
 
   if (isLoading) {
     return (
@@ -44,6 +46,15 @@ function RootResolver() {
 
   if (subdomainOrgSlug) {
     return <Navigate to={`/org/${subdomainOrgSlug}`} replace />;
+  }
+
+  if (isAuthenticated && !isPlatformAdmin) {
+    const primaryOrgId = me?.orgMemberships[0]?.orgId;
+    const organization = organizations.find((candidate) => candidate.id === primaryOrgId);
+
+    if (organization?.slug) {
+      return <Navigate to={`/org/${organization.slug}`} replace />;
+    }
   }
 
   return <Navigate to="/admin/organizations" replace />;

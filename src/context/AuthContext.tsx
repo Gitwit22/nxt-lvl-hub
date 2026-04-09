@@ -20,9 +20,9 @@ interface AuthContextType {
   authUserId: string | null;
   authEmail: string | null;
   isPlatformAdmin: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, setupToken?: string) => Promise<void>;
-  bootstrapAdmin: (setupToken: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<MeResponse>;
+  register: (email: string, password: string, setupToken?: string) => Promise<MeResponse>;
+  bootstrapAdmin: (setupToken: string) => Promise<MeResponse>;
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
 }
@@ -55,16 +55,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const handleAuthSuccess = useCallback(
-    async (tokens: AuthTokenResponse) => {
+    async (tokens: AuthTokenResponse): Promise<MeResponse> => {
       console.log("[auth] handleAuthSuccess: storing token, expiresIn =", tokens.expiresIn);
       setAccessToken(tokens.accessToken);
       scheduleRefresh(tokens.expiresIn);
+
+      if (tokens.profile) {
+        console.log("[auth] handleAuthSuccess: using profile from auth response");
+        setMe(tokens.profile);
+        setIsAuthenticated(true);
+
+        void meApi()
+          .then((profile) => {
+            console.log("[auth] handleAuthSuccess: refreshed profile after login");
+            setMe(profile);
+          })
+          .catch((err) => {
+            const msg = err instanceof Error ? err.message : "Failed to refresh profile after login";
+            console.error("[auth] handleAuthSuccess: background meApi failed:", msg);
+          });
+
+        return tokens.profile;
+      }
+
       try {
         console.log("[auth] handleAuthSuccess: calling meApi()");
         const profile = await meApi();
         console.log("[auth] handleAuthSuccess: meApi succeeded, setting profile");
         setMe(profile);
         setIsAuthenticated(true);
+        return profile;
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Failed to load profile after login";
         console.error("[auth] handleAuthSuccess: meApi failed:", msg);
@@ -109,8 +129,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log("[auth] login: calling loginApi");
         const tokens = await loginApi(email, password);
         console.log("[auth] login: loginApi returned, calling handleAuthSuccess");
-        await handleAuthSuccess(tokens);
+        const profile = await handleAuthSuccess(tokens);
         console.log("[auth] login: success");
+        return profile;
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Login failed";
         console.error("[auth] login: error:", msg);
@@ -123,7 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = useCallback(
     async (email: string, password: string, setupToken?: string) => {
       const tokens = await registerApi(email, password, setupToken);
-      await handleAuthSuccess(tokens);
+      return handleAuthSuccess(tokens);
     },
     [handleAuthSuccess],
   );
@@ -144,7 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const bootstrapAdmin = useCallback(
     async (setupToken: string) => {
       const tokens = await bootstrapAdminApi(setupToken);
-      await handleAuthSuccess(tokens);
+      return handleAuthSuccess(tokens);
     },
     [handleAuthSuccess],
   );
