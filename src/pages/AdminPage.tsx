@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePrograms } from "@/context/ProgramContext";
 import { useOrgPortal } from "@/context/OrgPortalContext";
@@ -94,8 +94,68 @@ const emptyProgramForm = (): Omit<Program, "id" | "createdAt" | "updatedAt"> => 
   launchLabel: "Launch",
   displayOrder: 99,
   notes: "",
-  accentColor: "",
+  accentColor: "#4f46e5",
+  cardBackgroundColor: "#4f46e5",
+  cardBackgroundOpacity: 12,
+  cardGlowColor: "#4f46e5",
+  cardGlowOpacity: 22,
+  cardHoverTintOpacity: 10,
 });
+
+function resolveProgramPreviewColor(color?: string) {
+  if (!color) return undefined;
+  if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl") || color.startsWith("var(")) {
+    return color;
+  }
+  return `hsl(${color})`;
+}
+
+function parseLegacyHslToHex(color?: string, fallback = "#4f46e5") {
+  if (!color) return fallback;
+  if (color.startsWith("#") && (color.length === 7 || color.length === 4)) {
+    return color;
+  }
+
+  const match = color.match(/^(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%$/);
+  if (!match) return fallback;
+
+  const hue = Number(match[1]);
+  const saturation = Number(match[2]) / 100;
+  const lightness = Number(match[3]) / 100;
+
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+  const huePrime = hue / 60;
+  const secondComponent = chroma * (1 - Math.abs((huePrime % 2) - 1));
+  const matchMap: Array<[number, number, number]> = [
+    [chroma, secondComponent, 0],
+    [secondComponent, chroma, 0],
+    [0, chroma, secondComponent],
+    [0, secondComponent, chroma],
+    [secondComponent, 0, chroma],
+    [chroma, 0, secondComponent],
+  ];
+  const [redBase, greenBase, blueBase] = matchMap[Math.floor(huePrime) % 6] ?? [0, 0, 0];
+  const lightnessAdjustment = lightness - chroma / 2;
+  const toHex = (value: number) => Math.round((value + lightnessAdjustment) * 255).toString(16).padStart(2, "0");
+
+  return `#${toHex(redBase)}${toHex(greenBase)}${toHex(blueBase)}`;
+}
+
+function hexToRgbaPreview(hex: string, opacityPercent: number) {
+  const normalized = hex.replace("#", "");
+  const expanded = normalized.length === 3
+    ? normalized.split("").map((segment) => `${segment}${segment}`).join("")
+    : normalized;
+
+  if (!/^[0-9a-fA-F]{6}$/.test(expanded)) {
+    return undefined;
+  }
+
+  const red = Number.parseInt(expanded.slice(0, 2), 16);
+  const green = Number.parseInt(expanded.slice(2, 4), 16);
+  const blue = Number.parseInt(expanded.slice(4, 6), 16);
+  return `rgba(${red}, ${green}, ${blue}, ${Math.max(0, Math.min(opacityPercent, 100)) / 100})`;
+}
 
 function slugify(value: string) {
   return value
@@ -140,24 +200,49 @@ function ProgramManagerTab() {
   const [tagsInput, setTagsInput] = useState("");
   const [logoInputMode, setLogoInputMode] = useState<"url" | "upload">("url");
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [uploadedLogoName, setUploadedLogoName] = useState("");
+  const logoFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const openAdd = () => {
     setEditingId(null);
     setForm(emptyProgramForm());
     setTagsInput("");
     setLogoInputMode("url");
+    setUploadedLogoName("");
     setOpen(true);
   };
 
   const openEdit = (program: Program) => {
     setEditingId(program.id);
-    setForm({ ...program });
+    setForm({
+      ...program,
+      accentColor: parseLegacyHslToHex(program.accentColor),
+      cardBackgroundColor: program.cardBackgroundColor || parseLegacyHslToHex(program.accentColor, "#334155"),
+      cardBackgroundOpacity: program.cardBackgroundOpacity ?? 12,
+      cardGlowColor: program.cardGlowColor || parseLegacyHslToHex(program.accentColor, "#4f46e5"),
+      cardGlowOpacity: program.cardGlowOpacity ?? 22,
+      cardHoverTintOpacity: program.cardHoverTintOpacity ?? 10,
+    });
     setTagsInput(program.tags.join(", "));
     setLogoInputMode(program.logoUrl?.startsWith("http") ? "url" : "upload");
+    setUploadedLogoName(program.logoUrl?.split("/").pop() ?? "");
     setOpen(true);
   };
 
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  const normalizeUploadedLogoUrl = (logoUrl: string) => {
+    if (/^https?:\/\//i.test(logoUrl)) {
+      return logoUrl;
+    }
+
+    const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? window.location.origin;
+    try {
+      return new URL(logoUrl, apiBaseUrl).toString();
+    } catch {
+      return logoUrl;
+    }
+  };
 
   const handleLogoUpload = async (file?: File) => {
     if (!file) return;
@@ -170,13 +255,17 @@ function ProgramManagerTab() {
 
     try {
       const upload = await uploadLogoFile(file);
-      set("logoUrl", upload.logoUrl);
+      set("logoUrl", normalizeUploadedLogoUrl(upload.logoUrl));
+      setUploadedLogoName(upload.fileName || file.name);
       setLogoInputMode("upload");
       toast.success("Logo uploaded");
     } catch (error) {
       toast.error(getErrorMessage(error));
     } finally {
       setIsUploadingLogo(false);
+      if (logoFileInputRef.current) {
+        logoFileInputRef.current.value = "";
+      }
     }
   };
 
@@ -345,13 +434,32 @@ function ProgramManagerTab() {
               </div>
 
               {logoInputMode === "url" ? (
-                <Input value={form.logoUrl || ""} onChange={(event) => set("logoUrl", event.target.value)} placeholder="https://cdn.nltops.com/logos/app.png" className="bg-secondary font-mono text-xs" />
+                <Input value={form.logoUrl || ""} onChange={(event) => {
+                  setUploadedLogoName("");
+                  set("logoUrl", event.target.value);
+                }} placeholder="https://cdn.nltops.com/logos/app.png" className="bg-secondary font-mono text-xs" />
               ) : (
                 <div className="space-y-2">
-                  <Label htmlFor="logo-upload" className="inline-flex items-center gap-2 text-xs font-mono cursor-pointer metal-button rounded px-3 py-2">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 text-xs font-mono cursor-pointer metal-button rounded px-3 py-2"
+                    onClick={() => logoFileInputRef.current?.click()}
+                    disabled={isUploadingLogo}
+                  >
                     <Upload className="h-3.5 w-3.5" /> {isUploadingLogo ? "Uploading..." : "Choose Image"}
-                  </Label>
-                  <Input id="logo-upload" type="file" accept="image/*" className="hidden" onChange={(event) => void handleLogoUpload(event.target.files?.[0])} disabled={isUploadingLogo} />
+                  </button>
+                  <input
+                    ref={logoFileInputRef}
+                    id="logo-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(event) => void handleLogoUpload(event.target.files?.[0])}
+                    disabled={isUploadingLogo}
+                  />
+                  <p className="text-[10px] text-muted-foreground font-mono">
+                    {uploadedLogoName ? `Uploaded: ${uploadedLogoName}` : form.logoUrl ? "Uploaded image ready" : "PNG, JPG, GIF, WEBP up to 5MB"}
+                  </p>
                 </div>
               )}
             </div>
@@ -396,8 +504,113 @@ function ProgramManagerTab() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="font-mono text-xs uppercase tracking-wider">Accent Color (HSL)</Label>
-                <Input value={form.accentColor || ""} onChange={(event) => set("accentColor", event.target.value)} placeholder="217 80% 56%" className="bg-secondary font-mono text-xs" />
+                <Label className="font-mono text-xs uppercase tracking-wider">Logo / Accent Color</Label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={parseLegacyHslToHex(form.accentColor)}
+                    onChange={(event) => set("accentColor", event.target.value)}
+                    className="h-10 w-14 rounded border border-input bg-secondary p-1"
+                  />
+                  <Input value={form.accentColor || ""} onChange={(event) => set("accentColor", event.target.value)} placeholder="#4f46e5" className="bg-secondary font-mono text-xs" />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
+              <div className="space-y-2">
+                <Label className="font-mono text-xs uppercase tracking-wider">Card Background Color</Label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={form.cardBackgroundColor || "#334155"}
+                    onChange={(event) => set("cardBackgroundColor", event.target.value)}
+                    className="h-10 w-14 rounded border border-input bg-secondary p-1"
+                  />
+                  <Input value={form.cardBackgroundColor || ""} onChange={(event) => set("cardBackgroundColor", event.target.value)} placeholder="#334155" className="bg-secondary font-mono text-xs" />
+                </div>
+              </div>
+              <div className="space-y-2 min-w-[180px]">
+                <Label className="font-mono text-xs uppercase tracking-wider">Background Opacity</Label>
+                <div className="space-y-2 rounded-lg border border-border/60 bg-secondary/40 px-3 py-2">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={form.cardBackgroundOpacity ?? 0}
+                    onChange={(event) => set("cardBackgroundOpacity", Number(event.target.value))}
+                    className="w-full"
+                  />
+                  <div className="text-[10px] font-mono text-muted-foreground">{form.cardBackgroundOpacity ?? 0}%</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label className="font-mono text-xs uppercase tracking-wider">Border Glow Color</Label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={form.cardGlowColor || "#4f46e5"}
+                    onChange={(event) => set("cardGlowColor", event.target.value)}
+                    className="h-10 w-14 rounded border border-input bg-secondary p-1"
+                  />
+                  <Input value={form.cardGlowColor || ""} onChange={(event) => set("cardGlowColor", event.target.value)} placeholder="#4f46e5" className="bg-secondary font-mono text-xs" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-mono text-xs uppercase tracking-wider">Glow Intensity</Label>
+                <div className="space-y-2 rounded-lg border border-border/60 bg-secondary/40 px-3 py-2">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={form.cardGlowOpacity ?? 0}
+                    onChange={(event) => set("cardGlowOpacity", Number(event.target.value))}
+                    className="w-full"
+                  />
+                  <div className="text-[10px] font-mono text-muted-foreground">{form.cardGlowOpacity ?? 0}%</div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-mono text-xs uppercase tracking-wider">Hover Tint Boost</Label>
+                <div className="space-y-2 rounded-lg border border-border/60 bg-secondary/40 px-3 py-2">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={form.cardHoverTintOpacity ?? 0}
+                    onChange={(event) => set("cardHoverTintOpacity", Number(event.target.value))}
+                    className="w-full"
+                  />
+                  <div className="text-[10px] font-mono text-muted-foreground">+{form.cardHoverTintOpacity ?? 0}% on hover</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="metal-panel rounded-lg p-4 space-y-3">
+              <Label className="font-mono text-xs uppercase tracking-wider">Card Preview</Label>
+              <div
+                className="rounded-lg border p-4 transition-all duration-200"
+                style={{
+                  backgroundColor: hexToRgbaPreview(form.cardBackgroundColor || "#334155", form.cardBackgroundOpacity ?? 0),
+                  borderColor: hexToRgbaPreview(form.cardGlowColor || "#4f46e5", Math.max(form.cardGlowOpacity ?? 0, 6)),
+                  boxShadow: `0 0 0 1px ${hexToRgbaPreview(form.cardGlowColor || "#4f46e5", Math.max(form.cardGlowOpacity ?? 0, 6))}, 0 0 20px ${hexToRgbaPreview(form.cardGlowColor || "#4f46e5", Math.max((form.cardGlowOpacity ?? 0) * 0.65, 8))}`,
+                }}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <ProgramLogo
+                    name={form.name || "Program"}
+                    logoUrl={form.logoUrl}
+                    accentColor={resolveProgramPreviewColor(form.accentColor)}
+                    className="w-14 h-14"
+                    textClassName="text-lg"
+                  />
+                  <StatusLED status={form.status} />
+                </div>
+                <div className="text-sm font-semibold text-foreground">{form.name || "Program Name"}</div>
+                <div className="text-xs text-muted-foreground mt-1">{form.shortDescription || "Short description preview"}</div>
               </div>
             </div>
 

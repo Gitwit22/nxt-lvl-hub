@@ -76,6 +76,11 @@ export class ProgramService {
       internalRoute: data.internalRoute || null,
       externalUrl: data.externalUrl || null,
       accentColor: data.accentColor || null,
+      cardBackgroundColor: data.cardBackgroundColor || null,
+      cardBackgroundOpacity: data.cardBackgroundOpacity ?? null,
+      cardGlowColor: data.cardGlowColor || null,
+      cardGlowOpacity: data.cardGlowOpacity ?? null,
+      cardHoverTintOpacity: data.cardHoverTintOpacity ?? null,
     };
 
     return programRepository.create(partitionKey, program);
@@ -106,6 +111,11 @@ export class ProgramService {
       internalRoute: merged.internalRoute,
       externalUrl: merged.externalUrl,
       openInNewTab: merged.openInNewTab,
+      cardBackgroundColor: merged.cardBackgroundColor,
+      cardBackgroundOpacity: merged.cardBackgroundOpacity,
+      cardGlowColor: merged.cardGlowColor,
+      cardGlowOpacity: merged.cardGlowOpacity,
+      cardHoverTintOpacity: merged.cardHoverTintOpacity,
       isFeatured: merged.isFeatured,
       isPublic: merged.isPublic,
       requiresLogin: merged.requiresLogin,
@@ -129,6 +139,11 @@ export class ProgramService {
       internalRoute: validated.internalRoute || null,
       externalUrl: validated.externalUrl || null,
       accentColor: validated.accentColor || null,
+      cardBackgroundColor: validated.cardBackgroundColor || null,
+      cardBackgroundOpacity: validated.cardBackgroundOpacity ?? null,
+      cardGlowColor: validated.cardGlowColor || null,
+      cardGlowOpacity: validated.cardGlowOpacity ?? null,
+      cardHoverTintOpacity: validated.cardHoverTintOpacity ?? null,
       slug,
       updatedAt: new Date().toISOString(),
     }));

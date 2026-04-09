@@ -23,6 +23,11 @@ export interface ProgramRecord {
   internalRoute: string | null;
   externalUrl: string | null;
   openInNewTab: boolean;
+  cardBackgroundColor: string | null;
+  cardBackgroundOpacity: number | null;
+  cardGlowColor: string | null;
+  cardGlowOpacity: number | null;
+  cardHoverTintOpacity: number | null;
   isFeatured: boolean;
   isPublic: boolean;
   requiresLogin: boolean;

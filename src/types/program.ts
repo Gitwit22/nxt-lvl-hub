@@ -20,6 +20,11 @@ export interface Program {
   logoUrl?: string;
   screenshotUrl?: string;
   accentColor?: string;
+  cardBackgroundColor?: string;
+  cardBackgroundOpacity?: number;
+  cardGlowColor?: string;
+  cardGlowOpacity?: number;
+  cardHoverTintOpacity?: number;
   isFeatured: boolean;
   isPublic: boolean;
   requiresLogin: boolean;
