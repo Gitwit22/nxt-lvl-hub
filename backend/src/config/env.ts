@@ -25,6 +25,6 @@ export function getAllowedOrigins() {
 
   return env.corsOrigin
     .split(",")
-    .map((origin) => origin.trim())
+    .map((origin) => origin.trim().replace(/\/$/, ""))
     .filter(Boolean);
 }

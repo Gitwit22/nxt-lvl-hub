@@ -23,7 +23,9 @@ export default function LoginPage() {
   const [showSetupToken, setShowSetupToken] = useState(false);
 
   const resolveDestination = async (profile: Awaited<ReturnType<typeof login>>) => {
-    if (from) {
+    const isAdminRoute = from?.startsWith("/admin") ?? false;
+
+    if (from && (!isAdminRoute || profile.isPlatformAdmin)) {
       return from;
     }
 

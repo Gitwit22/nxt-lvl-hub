@@ -48,6 +48,14 @@ function RootResolver() {
     return <Navigate to={`/org/${subdomainOrgSlug}`} replace />;
   }
 
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (isPlatformAdmin) {
+    return <Navigate to="/admin/organizations" replace />;
+  }
+
   if (isAuthenticated && !isPlatformAdmin) {
     const primaryOrgId = me?.orgMemberships[0]?.orgId;
     const organization = organizations.find((candidate) => candidate.id === primaryOrgId);
@@ -55,9 +63,13 @@ function RootResolver() {
     if (organization?.slug) {
       return <Navigate to={`/org/${organization.slug}`} replace />;
     }
+
+    if (primaryOrgId) {
+      return <Navigate to={`/org/${primaryOrgId}`} replace />;
+    }
   }
 
-  return <Navigate to="/admin/organizations" replace />;
+  return <Navigate to="/login" replace />;
 }
 
 const App = () => (

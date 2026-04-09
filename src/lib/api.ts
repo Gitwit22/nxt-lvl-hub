@@ -12,7 +12,22 @@ type ApiEnvelope<T> = {
 
 type ApiRecord = Record<string, unknown>;
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+const DEFAULT_HOSTED_API_BASE_URL = "https://community-chronicle.onrender.com";
+
+function getDefaultApiBaseUrl() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  const host = window.location.hostname.toLowerCase();
+  if (host === "nltops.com" || host.endsWith(".nltops.com") || host.endsWith(".pages.dev")) {
+    return DEFAULT_HOSTED_API_BASE_URL;
+  }
+
+  return "";
+}
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || getDefaultApiBaseUrl() || "").replace(/\/$/, "");
 const APP_PARTITION = PROGRAM_DOMAIN;
 const REQUEST_TIMEOUT_MS = 12000;
 
