@@ -64,8 +64,8 @@ function RootResolver() {
       return <Navigate to={`/org/${organization.slug}`} replace />;
     }
 
-    if (primaryOrgId) {
-      return <Navigate to={`/org/${primaryOrgId}`} replace />;
+    if (organizations[0]?.slug) {
+      return <Navigate to={`/org/${organizations[0].slug}`} replace />;
     }
   }
 

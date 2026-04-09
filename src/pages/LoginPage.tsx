@@ -44,6 +44,10 @@ export default function LoginPage() {
       if (organization?.slug) {
         return `/org/${organization.slug}`;
       }
+
+      if (organizations[0]?.slug) {
+        return `/org/${organizations[0].slug}`;
+      }
     } catch (err) {
       console.error("[auth] login: failed to resolve organization route", err);
     }
