@@ -31,7 +31,13 @@ export default function ProgramDetailPage() {
     if (program.type === "external" && program.externalUrl) {
       window.open(program.externalUrl, program.openInNewTab ? "_blank" : "_self");
     } else if (program.internalRoute) {
-      navigate(program.internalRoute);
+      const route = program.internalRoute;
+      const isExternal = route.startsWith("http://") || route.startsWith("https://") || (!route.startsWith("/") && route.includes("."));
+      if (isExternal) {
+        window.open(`https://${route.replace(/^https?:\/\//, "")}`, program.openInNewTab ? "_blank" : "_self");
+      } else {
+        navigate(route);
+      }
     }
   };
 
