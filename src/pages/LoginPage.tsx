@@ -28,6 +28,10 @@ export default function LoginPage() {
       return from;
     }
 
+    if (profile.isPlatformAdmin) {
+      return "/admin/organizations";
+    }
+
     return "/home";
   };
 

@@ -1329,11 +1329,6 @@ function SettingsPanel({ org, onSave }: { org: Organization; onSave: (updates: P
   const [phoneNumber, setPhoneNumber] = useState(org.phoneNumber || "");
   const [seatLimit, setSeatLimit] = useState(org.seatLimit);
   const [status, setStatus] = useState<OrganizationStatus>(org.status);
-  const [featureFlags, setFeatureFlags] = useState({
-    advancedAnalytics: true,
-    userProvisioning: true,
-    apiAccess: false,
-  });
 
   return (
     <div className="space-y-4">
@@ -1376,14 +1371,11 @@ function SettingsPanel({ org, onSave }: { org: Organization; onSave: (updates: P
         </div>
       </div>
 
-      <div className="rounded-lg border border-border p-4 space-y-3">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">Feature Flags</p>
-        {Object.entries(featureFlags).map(([key, value]) => (
-          <div key={key} className="flex items-center justify-between">
-            <p className="text-sm">{key}</p>
-            <Switch checked={value} onCheckedChange={(checked) => setFeatureFlags((prev) => ({ ...prev, [key]: checked }))} />
-          </div>
-        ))}
+      <div className="rounded-lg border border-border p-4 space-y-2 text-sm text-muted-foreground">
+        <p className="text-xs uppercase tracking-wider">Feature Flags</p>
+        <p>
+          Feature-level toggles are not persisted by the current organization API yet, so they are hidden from the edit flow for now.
+        </p>
       </div>
 
       <div className="flex justify-end">

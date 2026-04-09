@@ -29,7 +29,7 @@ const queryClient = new QueryClient();
 
 function RootResolver() {
   const { organizations, isLoading } = useOrgPortal();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isPlatformAdmin } = useAuth();
 
   if (isLoading) {
     return (
@@ -50,6 +50,10 @@ function RootResolver() {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (isPlatformAdmin) {
+    return <Navigate to="/admin/organizations" replace />;
   }
 
   return <Navigate to="/home" replace />;

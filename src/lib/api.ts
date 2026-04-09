@@ -396,35 +396,98 @@ export type OrganizationMutationInput = Omit<OrganizationRecord, "createdAt" | "
 export type OrgUserMutationInput = Omit<OrgUserRecord, "createdAt" | "updatedAt" | "deletedAt">;
 
 export function normalizeProgram(record: ProgramRecord): Program {
-  const { deletedAt: _deletedAt, ...program } = record;
+  const source = record as ProgramRecord & { key?: string; routePrefix?: string };
+  const { deletedAt: _deletedAt, ...program } = source;
+  const now = new Date().toISOString();
+  const routePrefix = typeof source.routePrefix === "string" ? source.routePrefix : "";
+  const derivedRoute = routePrefix || source.internalRoute || `/applications/${source.id}`;
+
   return {
-    ...program,
-    organizationId: record.organizationId ?? undefined,
-    internalRoute: record.internalRoute ?? undefined,
-    externalUrl: record.externalUrl ?? undefined,
-    logoUrl: record.logoUrl ?? undefined,
-    screenshotUrl: record.screenshotUrl ?? undefined,
-    accentColor: record.accentColor ?? undefined,
+    id: source.id,
+    slug: source.slug || source.key || source.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+    organizationId: source.organizationId ?? undefined,
+    name: source.name,
+    shortDescription: source.shortDescription || `${source.name} workspace`,
+    longDescription: source.longDescription || source.shortDescription || `${source.name} workspace`,
+    category: source.category || "Operations",
+    tags: Array.isArray(source.tags) ? source.tags : [],
+    status: source.status || "live",
+    type: source.type || (source.externalUrl ? "external" : "internal"),
+    origin: source.origin || "suite-native",
+    internalRoute: source.type === "external" ? undefined : derivedRoute,
+    externalUrl: source.type === "external" ? source.externalUrl || routePrefix || undefined : source.externalUrl || undefined,
+    openInNewTab: source.openInNewTab ?? source.type === "external",
+    logoUrl: source.logoUrl ?? undefined,
+    screenshotUrl: source.screenshotUrl ?? undefined,
+    accentColor: source.accentColor ?? undefined,
+    isFeatured: source.isFeatured ?? false,
+    isPublic: source.isPublic ?? true,
+    requiresLogin: source.requiresLogin ?? false,
+    requiresApproval: source.requiresApproval ?? false,
+    launchLabel: source.launchLabel || ((source.status || "live") === "coming-soon" ? "Coming Soon" : "Launch"),
+    displayOrder: source.displayOrder ?? 999,
+    notes: source.notes || "",
+    createdAt: source.createdAt || now,
+    updatedAt: source.updatedAt || now,
   };
 }
 
 export function normalizeOrganization(record: OrganizationRecord): Organization {
-  const { deletedAt: _deletedAt, ...organization } = record;
+  const source = record as Partial<OrganizationRecord>;
+  const now = new Date().toISOString();
+  const slug = source.slug || source.id || "organization";
+  const subdomain = source.subdomain || slug;
+  const name = source.name || "Organization";
+  const initials = (source.logo || name)
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((segment) => segment[0]?.toUpperCase() ?? "")
+    .join("") || "OR";
+
   return {
-    ...organization,
-    ownerUserId: record.ownerUserId ?? undefined,
-    logoUrl: record.logoUrl ?? undefined,
-    bannerUrl: record.bannerUrl ?? undefined,
-    phoneNumber: record.phoneNumber || undefined,
-    industryType: record.industryType || undefined,
-    notes: record.notes || undefined,
-    trialEndsAt: record.trialEndsAt || undefined,
+    id: source.id || slug,
+    name,
+    slug,
+    description: source.description || source.notes || "",
+    subdomain,
+    contactEmail: source.contactEmail || source.supportEmail || "support@nltops.com",
+    ownerEmail: source.ownerEmail || source.contactEmail || source.supportEmail || "owner@nltops.com",
+    ownerUserId: source.ownerUserId ?? undefined,
+    logo: source.logo || initials,
+    logoUrl: source.logoUrl ?? undefined,
+    bannerUrl: source.bannerUrl ?? undefined,
+    welcomeMessage: source.welcomeMessage || `Welcome to ${name}.`,
+    supportEmail: source.supportEmail || source.contactEmail || "support@nltops.com",
+    supportContactName: source.supportContactName || `${name} Support`,
+    phoneNumber: source.phoneNumber || undefined,
+    industryType: source.industryType || undefined,
+    notes: source.notes || undefined,
+    planType: source.planType || "starter",
+    seatLimit: source.seatLimit ?? 25,
+    status: (source.status as Organization["status"]) || (source.isActive === false ? "suspended" : "active"),
+    trialEndsAt: source.trialEndsAt || undefined,
+    createdAt: source.createdAt || now,
+    lastActivityAt: source.lastActivityAt || source.createdAt || now,
+    branding: source.branding || { primaryColor: "217 80% 56%", accentColor: "191 85% 47%" },
+    assignedProgramIds: Array.isArray(source.assignedProgramIds) ? source.assignedProgramIds : [],
+    assignedBundleIds: Array.isArray(source.assignedBundleIds) ? source.assignedBundleIds : [],
+    announcements: Array.isArray(source.announcements) ? source.announcements : [],
+    tags: Array.isArray(source.tags) ? source.tags : [],
   };
 }
 
 export function normalizeOrgUser(record: OrgUserRecord): PortalUser {
-  const { deletedAt: _deletedAt, createdAt: _createdAt, updatedAt: _updatedAt, ...user } = record;
-  return user;
+  const source = record as Partial<OrgUserRecord>;
+  return {
+    id: source.id || crypto.randomUUID(),
+    orgId: source.orgId || "",
+    name: source.name || source.email || "User",
+    email: source.email || "",
+    role: source.role || "staff",
+    active: source.active ?? true,
+    assignedProgramIds: Array.isArray(source.assignedProgramIds) ? source.assignedProgramIds : [],
+    authUserId: source.authUserId ?? undefined,
+  };
 }
 
 export function toProgramMutationInput(program: Program): ProgramMutationInput {

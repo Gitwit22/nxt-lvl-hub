@@ -136,18 +136,28 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const records = await Promise.all(orgRecords.map((organization) => listOrgUsers(organization.id)));
-    const merged = records.flat().map(normalizeOrgUser);
+    const settled = await Promise.allSettled(orgRecords.map((organization) => listOrgUsers(organization.id)));
+    const records = settled.flatMap((result) => {
+      if (result.status === "fulfilled") {
+        return result.value;
+      }
+
+      console.error("Failed to load organization users from API.", result.reason);
+      return [];
+    });
+    const merged = records.map(normalizeOrgUser);
 
     if (merged.length === 0) {
       const legacyUsers = loadUsers().filter((user) => orgRecords.some((organization) => organization.id === user.orgId));
       if (legacyUsers.length > 0) {
-        await Promise.all(
+        await Promise.allSettled(
           legacyUsers.map((user) => createOrgUserRecord(user.orgId, toOrgUserMutationInput(user))),
         );
 
-        const seeded = await Promise.all(orgRecords.map((organization) => listOrgUsers(organization.id)));
-        const normalizedSeededUsers = seeded.flat().map(normalizeOrgUser);
+        const seededSettled = await Promise.allSettled(orgRecords.map((organization) => listOrgUsers(organization.id)));
+        const normalizedSeededUsers = seededSettled
+          .flatMap((result) => (result.status === "fulfilled" ? result.value : []))
+          .map(normalizeOrgUser);
         setUsers(normalizedSeededUsers);
         saveUsers(normalizedSeededUsers);
         return;
