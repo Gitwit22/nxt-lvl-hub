@@ -85,15 +85,16 @@ export class AuthService {
         },
       });
 
-      if (user && user.isActive && user.memberships.length > 0) {
+      if (user && user.isActive) {
         const valid = await bcrypt.compare(input.password, user.passwordHash);
         if (!valid) {
           throw new AppError("Invalid email or password.", 401);
         }
 
-        // Use Prisma user with organization
-        const membership = user.memberships[0];
-        return this.issueTokensPrisma(user, membership.organizationId, partition);
+        // Use Prisma user - with organization if they have active memberships
+        const membership = user.memberships?.[0];
+        const organizationId = membership?.organizationId || "default-org";
+        return this.issueTokensPrisma(user, organizationId, partition);
       }
     } catch (err) {
       // If it's our AppError, rethrow it
