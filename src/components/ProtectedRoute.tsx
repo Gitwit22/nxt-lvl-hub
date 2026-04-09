@@ -1,12 +1,14 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { useOrgPortal } from "@/context/OrgPortalContext";
 
 interface ProtectedRouteProps {
   requirePlatformAdmin?: boolean;
 }
 
 export function ProtectedRoute({ requirePlatformAdmin = false }: ProtectedRouteProps) {
-  const { isInitializing, isAuthenticated, isPlatformAdmin } = useAuth();
+  const { isInitializing, isAuthenticated, isPlatformAdmin, me } = useAuth();
+  const { organizations } = useOrgPortal();
   const location = useLocation();
 
   if (isInitializing) {
@@ -22,16 +24,14 @@ export function ProtectedRoute({ requirePlatformAdmin = false }: ProtectedRouteP
   }
 
   if (requirePlatformAdmin && !isPlatformAdmin) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <div className="text-center">
-          <h1 className="text-xl font-semibold">Access Denied</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Platform admin access is required to view this page.
-          </p>
-        </div>
-      </div>
-    );
+    const primaryOrgId = me?.orgMemberships[0]?.orgId;
+    const organization = organizations.find((candidate) => candidate.id === primaryOrgId);
+
+    if (organization?.slug) {
+      return <Navigate to={`/org/${organization.slug}`} replace />;
+    }
+
+    return <Navigate to="/" replace />;
   }
 
   return <Outlet />;
