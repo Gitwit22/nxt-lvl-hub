@@ -40,7 +40,7 @@ function MainPageAuthPanel() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { isAuthenticated, me, login, register } = useAuth();
+  const { isAuthenticated, isInitializing, me, login, register } = useAuth();
   const { getOrganizationById } = useOrgPortal();
 
   const [email, setEmail] = useState("");
@@ -73,10 +73,10 @@ function MainPageAuthPanel() {
 
   useEffect(() => {
     const isAuthEntryRoute = Boolean(authParam) || pathTab !== null;
-    if (!isAuthenticated || !me || !isAuthEntryRoute) return;
+    if (isInitializing || !isAuthenticated || !me || !isAuthEntryRoute) return;
     const destination = returnTo || resolveRedirectPath(me, getOrganizationById);
     navigate(destination, { replace: true });
-  }, [authParam, getOrganizationById, isAuthenticated, me, navigate, pathTab, returnTo]);
+  }, [authParam, getOrganizationById, isAuthenticated, isInitializing, me, navigate, pathTab, returnTo]);
 
   const setTab = (nextTab: string) => {
     const params = new URLSearchParams(searchParams);

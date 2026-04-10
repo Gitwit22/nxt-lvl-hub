@@ -32,9 +32,9 @@ const queryClient = new QueryClient();
 
 function RootResolver() {
   const { isLoading } = useOrgPortal();
-  const { isAuthenticated, isPlatformAdmin } = useAuth();
+  const { isAuthenticated, isInitializing, isPlatformAdmin } = useAuth();
 
-  if (isLoading) {
+  if (isInitializing || isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">

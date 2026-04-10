@@ -34,7 +34,7 @@ function SuiteAuthPage({ mode }: { mode: AuthMode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { isAuthenticated, me, login, register } = useAuth();
+  const { isAuthenticated, isInitializing, me, login, register } = useAuth();
   const { getOrganizationById } = useOrgPortal();
 
   const [email, setEmail] = useState("");
@@ -58,10 +58,10 @@ function SuiteAuthPage({ mode }: { mode: AuthMode }) {
   }, [location.state, searchParams]);
 
   useEffect(() => {
-    if (!isAuthenticated || !me) return;
+    if (isInitializing || !isAuthenticated || !me) return;
     const destination = returnTo || resolveRedirectPath(me, getOrganizationById);
     navigate(destination, { replace: true });
-  }, [getOrganizationById, isAuthenticated, me, navigate, returnTo]);
+  }, [getOrganizationById, isAuthenticated, isInitializing, me, navigate, returnTo]);
 
   const submitAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -109,7 +109,7 @@ function SuiteAuthPage({ mode }: { mode: AuthMode }) {
 
   const activeTab = mode;
 
-  if (isAuthenticated) {
+  if (isInitializing || isAuthenticated) {
     return null;
   }
 
