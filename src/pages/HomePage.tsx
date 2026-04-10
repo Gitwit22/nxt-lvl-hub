@@ -4,14 +4,17 @@ import { Screw } from "@/components/Screw";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Cpu, Zap, Shield } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 
 export default function HomePage() {
   const { programs } = usePrograms();
+  const { isPlatformAdmin } = useAuth();
   const navigate = useNavigate();
+  const visiblePrograms = programs.filter((program) => isPlatformAdmin || !program.adminOnly);
 
-  const featured = programs.filter((p) => p.isFeatured && p.isPublic).sort((a, b) => a.displayOrder - b.displayOrder);
-  const recentlyAdded = [...programs].filter((p) => p.isPublic).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 4);
-  const comingSoon = programs.filter((p) => p.status === "coming-soon" && p.isPublic);
+  const featured = visiblePrograms.filter((p) => p.isFeatured && p.isPublic).sort((a, b) => a.displayOrder - b.displayOrder);
+  const recentlyAdded = [...visiblePrograms].filter((p) => p.isPublic).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 4);
+  const comingSoon = visiblePrograms.filter((p) => p.status === "coming-soon" && p.isPublic);
 
   return (
     <div className="p-6 md:p-10 space-y-14 max-w-6xl mx-auto">
@@ -37,6 +40,15 @@ export default function HomePage() {
             About
           </Button>
         </div>
+      </section>
+
+      <section className="rounded-xl border border-sky-400/25 bg-sky-500/10 p-5 md:p-6">
+        <p className="stamped-label text-[10px] text-sky-100/90">Account Next Step</p>
+        <h2 className="mt-2 font-mono text-base font-semibold text-sky-50">Create your organization portal and invite your team</h2>
+        <p className="mt-2 text-sm leading-relaxed text-sky-100/90">
+          From your suite dashboard, you can create an organization, launch your organization portal, and add users
+          so your team can access assigned programs.
+        </p>
       </section>
 
       {/* Value Props — raised panels */}

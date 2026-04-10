@@ -1,4 +1,4 @@
-export const organizationStatuses = ["active", "trial", "suspended", "archived"] as const;
+export const organizationStatuses = ["active", "trial", "suspended", "archived", "pending"] as const;
 export const organizationPlanTypes = ["starter", "growth", "enterprise"] as const;
 
 export type OrganizationStatus = (typeof organizationStatuses)[number];
@@ -6,7 +6,15 @@ export type OrganizationPlanType = (typeof organizationPlanTypes)[number];
 
 export interface OrganizationBranding {
   primaryColor: string;
+  secondaryColor: string;
   accentColor: string;
+  backgroundColor: string;
+  backgroundStartColor: string;
+  backgroundEndColor: string;
+  bannerStartColor: string;
+  bannerEndColor: string;
+  gradientAngle: number;
+  fontFamily: string;
 }
 
 export interface OrganizationAnnouncement {
@@ -31,23 +39,30 @@ export interface OrganizationRecord {
   contactEmail: string;
   logo: string;
   logoUrl: string | null;
+  faviconUrl: string | null;
   bannerUrl: string | null;
+  backgroundUrl: string | null;
+  portalTitle: string;
   welcomeMessage: string;
   supportEmail: string;
   supportContactName: string;
+  supportPhone: string;
   phoneNumber: string;
   industryType: string;
   notes: string;
   planType: OrganizationPlanType;
+  billingPlan: string | null;
   seatLimit: number;
   trialEndsAt: string | null;
   lastActivityAt: string;
   branding: OrganizationBranding;
   assignedProgramIds: string[];
+  enabledModules: string[];
   assignedBundleIds: string[];
   announcements: OrganizationAnnouncement[];
   ownerEmail: string;
   ownerUserId: string | null;
+  customDomain: string | null;
   status: OrganizationStatus;
   tags: string[];
   settings: OrganizationSettings;

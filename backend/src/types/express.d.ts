@@ -14,6 +14,15 @@ declare global {
         role: OrgUserRole;
         userId: string;
       };
+      resolvedOrganization?: {
+        id: string;
+        slug: string;
+        subdomain: string;
+        name: string;
+        status: string;
+        enabledPrograms: string[];
+        enabledModules: string[];
+      };
     }
   }
 }

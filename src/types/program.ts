@@ -10,6 +10,7 @@ export interface Program {
   shortDescription: string;
   longDescription: string;
   category: string;
+  secondaryCategory?: string;
   tags: string[];
   status: ProgramStatus;
   type: ProgramType;
@@ -20,6 +21,12 @@ export interface Program {
   logoUrl?: string;
   screenshotUrl?: string;
   accentColor?: string;
+  cardBackgroundColor?: string;
+  cardBackgroundOpacity?: number;
+  cardGlowColor?: string;
+  cardGlowOpacity?: number;
+  cardHoverTintOpacity?: number;
+  adminOnly?: boolean;
   isFeatured: boolean;
   isPublic: boolean;
   requiresLogin: boolean;

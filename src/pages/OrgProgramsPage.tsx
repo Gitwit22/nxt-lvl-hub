@@ -5,7 +5,7 @@ import { OrgProgramCard } from "@/components/OrgProgramCard";
 
 export default function OrgProgramsPage() {
   const { orgSlug = "" } = useParams();
-  const { getOrganizationBySlug, getUsersForOrganization, activeUserByOrg, getProgramsForUser } = useOrgPortal();
+  const { getOrganizationBySlug, getUsersForOrganization, getOrganizationPrograms, getOrgCurrentUser, getProgramsForUser } = useOrgPortal();
 
   const org = getOrganizationBySlug(orgSlug);
   const users = useMemo(() => (org ? getUsersForOrganization(org.id) : []), [getUsersForOrganization, org]);
@@ -14,8 +14,9 @@ export default function OrgProgramsPage() {
     return <p className="text-sm text-muted-foreground">Unknown organization.</p>;
   }
 
-  const currentUser = users.find((user) => user.id === activeUserByOrg[org.id]) ?? users[0];
-  const visiblePrograms = currentUser ? getProgramsForUser(org, currentUser.id) : [];
+  const currentUser = getOrgCurrentUser(org.id) ?? users.find((user) => user.active) ?? users[0];
+  const orgPrograms = getOrganizationPrograms(org);
+  const visiblePrograms = currentUser ? getProgramsForUser(org, currentUser.id) : orgPrograms;
 
   return (
     <div className="space-y-5">
@@ -23,7 +24,7 @@ export default function OrgProgramsPage() {
         <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Program Launcher</p>
         <h1 className="text-2xl font-semibold">Assigned Platforms</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Showing programs assigned to {currentUser?.name ?? "the selected user"}. Staff only sees their assigned apps.
+          Showing programs assigned to {currentUser?.name ?? "this organization"}. Staff only sees their assigned apps.
         </p>
       </div>
 

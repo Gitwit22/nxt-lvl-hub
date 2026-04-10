@@ -1,3 +1,4 @@
+/// <reference path="../types/express.d.ts" />
 import type { Request, Response } from "express";
 import { authService, REFRESH_COOKIE_MAX_AGE, REFRESH_COOKIE_NAME } from "../services/auth.service.js";
 import { sendSuccess } from "../utils/response.js";
@@ -17,7 +18,12 @@ function setRefreshCookie(response: Response, token: string) {
 }
 
 function clearRefreshCookie(response: Response) {
-  response.clearCookie(REFRESH_COOKIE_NAME, { path: "/api/auth" });
+  response.clearCookie(REFRESH_COOKIE_NAME, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "strict" : "lax",
+    path: "/api/auth",
+  });
 }
 
 export async function login(request: Request, response: Response) {

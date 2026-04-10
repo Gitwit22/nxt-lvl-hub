@@ -4,20 +4,64 @@ import { ArrowLeft, ExternalLink, Rocket } from "lucide-react";
 import { usePrograms } from "@/context/ProgramContext";
 import { Button } from "@/components/ui/button";
 import { Screw } from "@/components/Screw";
+import { useAuth } from "@/context/AuthContext";
+import { normalizeInternalLaunchUrl, slugifyAppName } from "@/lib/appCatalog";
+import { getAccessToken } from "@/lib/api";
+
+const SUITE_LAUNCH_HOST_HINTS = ["community-chronicle", "mission-hub"];
+const LANDING_FIRST_HOST_HINTS = ["community-chronicle"];
 
 export default function AppWorkspacePage() {
   const { appSlug = "" } = useParams();
   const navigate = useNavigate();
   const { programs } = usePrograms();
+  const { isPlatformAdmin } = useAuth();
 
   const program = useMemo(
     () =>
       programs.find((entry) => {
-        const internalRoute = entry.internalRoute || "";
-        return internalRoute.replace(/^\/+/, "").toLowerCase() === `apps/${appSlug}`.toLowerCase();
+        if (entry.adminOnly && !isPlatformAdmin) {
+          return false;
+        }
+        const slug = entry.slug || slugifyAppName(entry.name);
+        return normalizeInternalLaunchUrl(entry.internalRoute, slug).toLowerCase() === `/workspace/${appSlug}`.toLowerCase();
       }),
-    [appSlug, programs],
+    [appSlug, isPlatformAdmin, programs],
   );
+
+  const resolveExternalLaunchUrl = (url: string) => {
+    const token = getAccessToken();
+    if (!token) return url;
+
+    try {
+      const target = new URL(url, window.location.origin);
+      const host = target.hostname.toLowerCase();
+      const supportsSuiteLaunch = SUITE_LAUNCH_HOST_HINTS.some((hint) => host.includes(hint));
+      if (!supportsSuiteLaunch) {
+        return url;
+      }
+
+      const shouldOpenLandingFirst = LANDING_FIRST_HOST_HINTS.some((hint) => host.includes(hint));
+      target.pathname = shouldOpenLandingFirst ? "/landing" : "/launch";
+      if (!target.searchParams.get("token")) {
+        target.searchParams.set("token", token);
+      }
+      return target.toString();
+    } catch {
+      return url;
+    }
+  };
+
+  if (!program) {
+    return (
+      <div className="p-10 text-center">
+        <p className="stamped-label text-xs">Program not found.</p>
+        <Button variant="ghost" className="mt-4" onClick={() => navigate("/applications")}>
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 md:p-10 max-w-4xl mx-auto space-y-6">
@@ -38,15 +82,15 @@ export default function AppWorkspacePage() {
 
           <div>
             <p className="stamped-label text-[10px]">Workspace Route Active</p>
-            <h1 className="font-mono text-2xl font-bold tracking-tight">{program?.name || "Application Workspace"}</h1>
+            <h1 className="font-mono text-2xl font-bold tracking-tight">{program.name}</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              {program?.longDescription || "This internal application route is now live and no longer drops to a 404 page. Use it as the handoff point for each suite workspace as modules are built out."}
+              {program.longDescription || "This internal application route is now live and no longer drops to a 404 page. Use it as the handoff point for each suite workspace as modules are built out."}
             </p>
           </div>
 
           <div className="rounded-lg border border-border bg-secondary/30 p-4">
             <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Current Route</p>
-            <p className="mt-2 font-mono text-sm text-foreground">/apps/{appSlug}</p>
+            <p className="mt-2 font-mono text-sm text-foreground">/workspace/{appSlug}</p>
           </div>
 
           <div className="flex flex-wrap gap-3">
@@ -54,8 +98,8 @@ export default function AppWorkspacePage() {
             <Button variant="outline" onClick={() => navigate("/admin/programs")}>
               Review Launch Mapping
             </Button>
-            {program?.externalUrl && (
-              <Button variant="outline" onClick={() => window.open(program.externalUrl, program.openInNewTab ? "_blank" : "_self")}>
+            {program.externalUrl && (
+              <Button variant="outline" onClick={() => window.open(resolveExternalLaunchUrl(program.externalUrl), program.openInNewTab ? "_blank" : "_self")}>
                 Open External Version <ExternalLink className="h-4 w-4" />
               </Button>
             )}

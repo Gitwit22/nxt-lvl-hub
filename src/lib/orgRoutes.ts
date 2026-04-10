@@ -1,6 +1,42 @@
 import { Organization } from "@/types/orgPortal";
 
-export const SUITE_DOMAIN = "nxtlvlsuite.com";
+export const SUITE_DOMAIN = "ntlops.com";
+export const RESERVED_PORTAL_SUBDOMAINS = new Set([
+  "www",
+  "app",
+  "api",
+  "admin",
+  "login",
+  "auth",
+  "docs",
+  "help",
+  "support",
+  "status",
+  "cdn",
+  "mail",
+  "smtp",
+  "pop",
+  "imap",
+  "ftp",
+  "m",
+  "blog",
+  "portal",
+  "dashboard",
+]);
+
+export function getOrganizationSlugFromHost(hostname: string) {
+  const host = hostname.trim().toLowerCase().split(":")[0] || "";
+  if (!host || host === SUITE_DOMAIN) return null;
+
+  const domainSuffix = `.${SUITE_DOMAIN}`;
+  if (!host.endsWith(domainSuffix)) return null;
+
+  const subdomain = host.slice(0, -domainSuffix.length);
+  if (!subdomain || subdomain.includes(".")) return null;
+  if (RESERVED_PORTAL_SUBDOMAINS.has(subdomain)) return null;
+
+  return subdomain;
+}
 
 export function getOrgBasePath(orgSlug: string) {
   return `/org/${orgSlug}`;
@@ -12,6 +48,10 @@ export function getOrgProgramsPath(orgSlug: string) {
 
 export function getOrgUsersPath(orgSlug: string) {
   return `${getOrgBasePath(orgSlug)}/users`;
+}
+
+export function getOrgOrganizationPath(orgSlug: string) {
+  return `${getOrgBasePath(orgSlug)}/organization`;
 }
 
 export function getOrgSettingsPath(orgSlug: string) {
@@ -28,12 +68,8 @@ export function getOrgPortalFallbackUrl(orgSlug: string) {
 }
 
 export function resolveOrgSlugFromHost(hostname: string, organizations: Organization[]) {
-  const host = hostname.toLowerCase();
-  const domainSuffix = `.${SUITE_DOMAIN}`;
-  if (!host.endsWith(domainSuffix)) return undefined;
-
-  const subdomain = host.slice(0, -domainSuffix.length);
-  if (!subdomain || subdomain.includes(".")) return undefined;
+  const subdomain = getOrganizationSlugFromHost(hostname);
+  if (!subdomain) return undefined;
 
   return organizations.find((org) => org.subdomain.toLowerCase() === subdomain)?.slug;
 }

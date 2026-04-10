@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePrograms } from "@/context/ProgramContext";
 import { useOrgPortal } from "@/context/OrgPortalContext";
@@ -24,7 +24,7 @@ import { Check, Plus, Pencil, Trash2, Upload, Search, Eye, PauseCircle, PlayCirc
 import { toast } from "sonner";
 
 const PAGE_SIZE = 8;
-const ROOT_DOMAIN = "nxtlvlsuite.com";
+const ROOT_DOMAIN = "ntlops.com";
 
 type AdminSection = "organizations" | "programs";
 type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
@@ -66,8 +66,8 @@ const DEFAULT_WIZARD_STATE: WizardState = {
   assignedProgramIds: [],
   logoUrl: "",
   bannerUrl: "",
-  primaryColor: "217 80% 56%",
-  accentColor: "191 85% 47%",
+  primaryColor: "#2563eb",
+  accentColor: "#0ea5e9",
   planType: "starter",
   trialDays: 30,
   status: "trial",
@@ -79,6 +79,7 @@ const emptyProgramForm = (): Omit<Program, "id" | "createdAt" | "updatedAt"> => 
   shortDescription: "",
   longDescription: "",
   category: "Operations",
+  secondaryCategory: "",
   tags: [],
   status: "coming-soon" as ProgramStatus,
   type: "internal" as ProgramType,
@@ -94,8 +95,84 @@ const emptyProgramForm = (): Omit<Program, "id" | "createdAt" | "updatedAt"> => 
   launchLabel: "Launch",
   displayOrder: 99,
   notes: "",
-  accentColor: "",
+  accentColor: "#4f46e5",
+  cardBackgroundColor: "#4f46e5",
+  cardBackgroundOpacity: 12,
+  cardGlowColor: "#4f46e5",
+  cardGlowOpacity: 22,
+  cardHoverTintOpacity: 10,
+  adminOnly: false,
 });
+
+function resolveProgramPreviewColor(color?: string) {
+  if (!color) return undefined;
+  if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl") || color.startsWith("var(")) {
+    return color;
+  }
+  return `hsl(${color})`;
+}
+
+function parseLegacyHslToHex(color?: string, fallback = "#4f46e5") {
+  if (!color) return fallback;
+  if (color.startsWith("#") && (color.length === 7 || color.length === 4)) {
+    return color;
+  }
+
+  const match = color.match(/^(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%$/);
+  if (!match) return fallback;
+
+  const hue = Number(match[1]);
+  const saturation = Number(match[2]) / 100;
+  const lightness = Number(match[3]) / 100;
+
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+  const huePrime = hue / 60;
+  const secondComponent = chroma * (1 - Math.abs((huePrime % 2) - 1));
+  const matchMap: Array<[number, number, number]> = [
+    [chroma, secondComponent, 0],
+    [secondComponent, chroma, 0],
+    [0, chroma, secondComponent],
+    [0, secondComponent, chroma],
+    [secondComponent, 0, chroma],
+    [chroma, 0, secondComponent],
+  ];
+  const [redBase, greenBase, blueBase] = matchMap[Math.floor(huePrime) % 6] ?? [0, 0, 0];
+  const lightnessAdjustment = lightness - chroma / 2;
+  const toHex = (value: number) => Math.round((value + lightnessAdjustment) * 255).toString(16).padStart(2, "0");
+
+  return `#${toHex(redBase)}${toHex(greenBase)}${toHex(blueBase)}`;
+}
+
+function toCssColor(color?: string, fallback = "#4f46e5") {
+  if (!color) return fallback;
+  if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl") || color.startsWith("var(")) {
+    return color;
+  }
+  if (/^(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%$/.test(color)) {
+    return `hsl(${color})`;
+  }
+  return fallback;
+}
+
+function gradientCss(start: string, end: string, angle = 135) {
+  return `linear-gradient(${Math.max(0, Math.min(angle, 360))}deg, ${toCssColor(start, "#0f172a")}, ${toCssColor(end, "#1d4ed8")})`;
+}
+
+function hexToRgbaPreview(hex: string, opacityPercent: number) {
+  const normalized = hex.replace("#", "");
+  const expanded = normalized.length === 3
+    ? normalized.split("").map((segment) => `${segment}${segment}`).join("")
+    : normalized;
+
+  if (!/^[0-9a-fA-F]{6}$/.test(expanded)) {
+    return undefined;
+  }
+
+  const red = Number.parseInt(expanded.slice(0, 2), 16);
+  const green = Number.parseInt(expanded.slice(2, 4), 16);
+  const blue = Number.parseInt(expanded.slice(4, 6), 16);
+  return `rgba(${red}, ${green}, ${blue}, ${Math.max(0, Math.min(opacityPercent, 100)) / 100})`;
+}
 
 function slugify(value: string) {
   return value
@@ -125,6 +202,7 @@ function formatDate(value?: string) {
 function StatusPill({ status }: { status: OrganizationStatus }) {
   const map: Record<OrganizationStatus, string> = {
     active: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+    pending: "bg-blue-500/20 text-blue-200 border-blue-500/30",
     suspended: "bg-red-500/20 text-red-300 border-red-500/30",
     trial: "bg-amber-500/20 text-amber-200 border-amber-500/30",
   };
@@ -140,24 +218,49 @@ function ProgramManagerTab() {
   const [tagsInput, setTagsInput] = useState("");
   const [logoInputMode, setLogoInputMode] = useState<"url" | "upload">("url");
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [uploadedLogoName, setUploadedLogoName] = useState("");
+  const logoFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const openAdd = () => {
     setEditingId(null);
     setForm(emptyProgramForm());
     setTagsInput("");
     setLogoInputMode("url");
+    setUploadedLogoName("");
     setOpen(true);
   };
 
   const openEdit = (program: Program) => {
     setEditingId(program.id);
-    setForm({ ...program });
+    setForm({
+      ...program,
+      accentColor: parseLegacyHslToHex(program.accentColor),
+      cardBackgroundColor: program.cardBackgroundColor || parseLegacyHslToHex(program.accentColor, "#334155"),
+      cardBackgroundOpacity: program.cardBackgroundOpacity ?? 12,
+      cardGlowColor: program.cardGlowColor || parseLegacyHslToHex(program.accentColor, "#4f46e5"),
+      cardGlowOpacity: program.cardGlowOpacity ?? 22,
+      cardHoverTintOpacity: program.cardHoverTintOpacity ?? 10,
+    });
     setTagsInput(program.tags.join(", "));
     setLogoInputMode(program.logoUrl?.startsWith("http") ? "url" : "upload");
+    setUploadedLogoName(program.logoUrl?.split("/").pop() ?? "");
     setOpen(true);
   };
 
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  const normalizeUploadedLogoUrl = (logoUrl: string) => {
+    if (/^https?:\/\//i.test(logoUrl)) {
+      return logoUrl;
+    }
+
+    const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? window.location.origin;
+    try {
+      return new URL(logoUrl, apiBaseUrl).toString();
+    } catch {
+      return logoUrl;
+    }
+  };
 
   const handleLogoUpload = async (file?: File) => {
     if (!file) return;
@@ -170,13 +273,17 @@ function ProgramManagerTab() {
 
     try {
       const upload = await uploadLogoFile(file);
-      set("logoUrl", upload.logoUrl);
+      set("logoUrl", normalizeUploadedLogoUrl(upload.logoUrl));
+      setUploadedLogoName(upload.fileName || file.name);
       setLogoInputMode("upload");
       toast.success("Logo uploaded");
     } catch (error) {
       toast.error(getErrorMessage(error));
     } finally {
       setIsUploadingLogo(false);
+      if (logoFileInputRef.current) {
+        logoFileInputRef.current.value = "";
+      }
     }
   };
 
@@ -257,10 +364,15 @@ function ProgramManagerTab() {
             <ProgramLogo name={program.name} logoUrl={program.logoUrl} accentColor={program.accentColor} className="w-8 h-8" textClassName="text-xs" />
             <div className="flex-1 min-w-0">
               <p className="font-mono font-medium text-foreground text-sm truncate">{program.name}</p>
-              <p className="text-[10px] stamped-label">{program.category} · Order: {program.displayOrder}</p>
+              <p className="text-[10px] stamped-label">
+                {program.category}
+                {program.secondaryCategory ? ` / ${program.secondaryCategory}` : ""}
+                {` · Order: ${program.displayOrder}`}
+              </p>
             </div>
             <StatusLED status={program.status} className="hidden sm:flex" />
             {!program.isPublic && <span className="stamped-label text-[8px] hidden sm:inline">Private</span>}
+            {program.adminOnly && <span className="stamped-label text-[8px] hidden sm:inline">Admin Only</span>}
             <div className="flex gap-1 shrink-0">
               <button onClick={() => openEdit(program)} className="metal-button rounded p-1.5 hover:text-primary transition-colors">
                 <Pencil className="h-3.5 w-3.5" />
@@ -279,7 +391,7 @@ function ProgramManagerTab() {
             <DialogTitle className="font-mono uppercase tracking-wider text-sm">{editingId ? "Edit Program" : "Add Program"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="font-mono text-xs uppercase tracking-wider">Program Name *</Label>
                 <Input value={form.name} onChange={(event) => set("name", event.target.value)} className="bg-secondary font-mono text-xs" />
@@ -289,6 +401,19 @@ function ProgramManagerTab() {
                 <Select value={form.category} onValueChange={(value) => set("category", value)}>
                   <SelectTrigger className="bg-secondary font-mono text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>{CATEGORIES.map((category) => <SelectItem key={category} value={category}>{category}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-mono text-xs uppercase tracking-wider">Secondary Category (Optional)</Label>
+                <Select
+                  value={form.secondaryCategory || "none"}
+                  onValueChange={(value) => set("secondaryCategory", value === "none" ? "" : value)}
+                >
+                  <SelectTrigger className="bg-secondary font-mono text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {CATEGORIES.map((category) => <SelectItem key={category} value={category}>{category}</SelectItem>)}
+                  </SelectContent>
                 </Select>
               </div>
             </div>
@@ -345,13 +470,32 @@ function ProgramManagerTab() {
               </div>
 
               {logoInputMode === "url" ? (
-                <Input value={form.logoUrl || ""} onChange={(event) => set("logoUrl", event.target.value)} placeholder="https://cdn.nltops.com/logos/app.png" className="bg-secondary font-mono text-xs" />
+                <Input value={form.logoUrl || ""} onChange={(event) => {
+                  setUploadedLogoName("");
+                  set("logoUrl", event.target.value);
+                }} placeholder="https://cdn.nltops.com/logos/app.png" className="bg-secondary font-mono text-xs" />
               ) : (
                 <div className="space-y-2">
-                  <Label htmlFor="logo-upload" className="inline-flex items-center gap-2 text-xs font-mono cursor-pointer metal-button rounded px-3 py-2">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 text-xs font-mono cursor-pointer metal-button rounded px-3 py-2"
+                    onClick={() => logoFileInputRef.current?.click()}
+                    disabled={isUploadingLogo}
+                  >
                     <Upload className="h-3.5 w-3.5" /> {isUploadingLogo ? "Uploading..." : "Choose Image"}
-                  </Label>
-                  <Input id="logo-upload" type="file" accept="image/*" className="hidden" onChange={(event) => void handleLogoUpload(event.target.files?.[0])} disabled={isUploadingLogo} />
+                  </button>
+                  <input
+                    ref={logoFileInputRef}
+                    id="logo-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(event) => void handleLogoUpload(event.target.files?.[0])}
+                    disabled={isUploadingLogo}
+                  />
+                  <p className="text-[10px] text-muted-foreground font-mono">
+                    {uploadedLogoName ? `Uploaded: ${uploadedLogoName}` : form.logoUrl ? "Uploaded image ready" : "PNG, JPG, GIF, WEBP up to 5MB"}
+                  </p>
                 </div>
               )}
             </div>
@@ -396,8 +540,113 @@ function ProgramManagerTab() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="font-mono text-xs uppercase tracking-wider">Accent Color (HSL)</Label>
-                <Input value={form.accentColor || ""} onChange={(event) => set("accentColor", event.target.value)} placeholder="217 80% 56%" className="bg-secondary font-mono text-xs" />
+                <Label className="font-mono text-xs uppercase tracking-wider">Logo / Accent Color</Label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={parseLegacyHslToHex(form.accentColor)}
+                    onChange={(event) => set("accentColor", event.target.value)}
+                    className="h-10 w-14 rounded border border-input bg-secondary p-1"
+                  />
+                  <Input value={form.accentColor || ""} onChange={(event) => set("accentColor", event.target.value)} placeholder="#4f46e5" className="bg-secondary font-mono text-xs" />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-end">
+              <div className="space-y-2">
+                <Label className="font-mono text-xs uppercase tracking-wider">Card Background Color</Label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={form.cardBackgroundColor || "#334155"}
+                    onChange={(event) => set("cardBackgroundColor", event.target.value)}
+                    className="h-10 w-14 rounded border border-input bg-secondary p-1"
+                  />
+                  <Input value={form.cardBackgroundColor || ""} onChange={(event) => set("cardBackgroundColor", event.target.value)} placeholder="#334155" className="bg-secondary font-mono text-xs" />
+                </div>
+              </div>
+              <div className="space-y-2 min-w-[180px]">
+                <Label className="font-mono text-xs uppercase tracking-wider">Background Opacity</Label>
+                <div className="space-y-2 rounded-lg border border-border/60 bg-secondary/40 px-3 py-2">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={form.cardBackgroundOpacity ?? 0}
+                    onChange={(event) => set("cardBackgroundOpacity", Number(event.target.value))}
+                    className="w-full"
+                  />
+                  <div className="text-[10px] font-mono text-muted-foreground">{form.cardBackgroundOpacity ?? 0}%</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label className="font-mono text-xs uppercase tracking-wider">Border Glow Color</Label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={form.cardGlowColor || "#4f46e5"}
+                    onChange={(event) => set("cardGlowColor", event.target.value)}
+                    className="h-10 w-14 rounded border border-input bg-secondary p-1"
+                  />
+                  <Input value={form.cardGlowColor || ""} onChange={(event) => set("cardGlowColor", event.target.value)} placeholder="#4f46e5" className="bg-secondary font-mono text-xs" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-mono text-xs uppercase tracking-wider">Glow Intensity</Label>
+                <div className="space-y-2 rounded-lg border border-border/60 bg-secondary/40 px-3 py-2">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={form.cardGlowOpacity ?? 0}
+                    onChange={(event) => set("cardGlowOpacity", Number(event.target.value))}
+                    className="w-full"
+                  />
+                  <div className="text-[10px] font-mono text-muted-foreground">{form.cardGlowOpacity ?? 0}%</div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-mono text-xs uppercase tracking-wider">Hover Tint Boost</Label>
+                <div className="space-y-2 rounded-lg border border-border/60 bg-secondary/40 px-3 py-2">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={form.cardHoverTintOpacity ?? 0}
+                    onChange={(event) => set("cardHoverTintOpacity", Number(event.target.value))}
+                    className="w-full"
+                  />
+                  <div className="text-[10px] font-mono text-muted-foreground">+{form.cardHoverTintOpacity ?? 0}% on hover</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="metal-panel rounded-lg p-4 space-y-3">
+              <Label className="font-mono text-xs uppercase tracking-wider">Card Preview</Label>
+              <div
+                className="rounded-lg border p-4 transition-all duration-200"
+                style={{
+                  backgroundColor: hexToRgbaPreview(form.cardBackgroundColor || "#334155", form.cardBackgroundOpacity ?? 0),
+                  borderColor: hexToRgbaPreview(form.cardGlowColor || "#4f46e5", Math.max(form.cardGlowOpacity ?? 0, 6)),
+                  boxShadow: `0 0 0 1px ${hexToRgbaPreview(form.cardGlowColor || "#4f46e5", Math.max(form.cardGlowOpacity ?? 0, 6))}, 0 0 20px ${hexToRgbaPreview(form.cardGlowColor || "#4f46e5", Math.max((form.cardGlowOpacity ?? 0) * 0.65, 8))}`,
+                }}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <ProgramLogo
+                    name={form.name || "Program"}
+                    logoUrl={form.logoUrl}
+                    accentColor={resolveProgramPreviewColor(form.accentColor)}
+                    className="w-14 h-14"
+                    textClassName="text-lg"
+                  />
+                  <StatusLED status={form.status} />
+                </div>
+                <div className="text-sm font-semibold text-foreground">{form.name || "Program Name"}</div>
+                <div className="text-xs text-muted-foreground mt-1">{form.shortDescription || "Short description preview"}</div>
               </div>
             </div>
 
@@ -405,6 +654,7 @@ function ProgramManagerTab() {
               {([
                 ["isFeatured", "Featured"],
                 ["isPublic", "Public"],
+                ["adminOnly", "Admin Only"],
                 ["requiresLogin", "Requires Login"],
                 ["requiresApproval", "Requires Approval"],
                 ["openInNewTab", "New Tab"],
@@ -765,21 +1015,34 @@ function OrganizationsTab() {
           </div>
 
           <div className="space-y-2">
-            <Label>Primary Color (HSL)</Label>
-            <Input value={wizardState.primaryColor} onChange={(event) => updateWizard("primaryColor", event.target.value)} placeholder="217 80% 56%" />
+            <Label>Primary Color</Label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={parseLegacyHslToHex(wizardState.primaryColor, "#2563eb")}
+                onChange={(event) => updateWizard("primaryColor", event.target.value)}
+                className="h-10 w-14 rounded border border-input bg-secondary p-1"
+              />
+              <Input value={wizardState.primaryColor} onChange={(event) => updateWizard("primaryColor", event.target.value)} placeholder="#2563eb" />
+            </div>
           </div>
 
           <div className="space-y-2">
-            <Label>Accent Color (HSL)</Label>
-            <Input value={wizardState.accentColor} onChange={(event) => updateWizard("accentColor", event.target.value)} placeholder="191 85% 47%" />
+            <Label>Accent Color</Label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={parseLegacyHslToHex(wizardState.accentColor, "#0ea5e9")}
+                onChange={(event) => updateWizard("accentColor", event.target.value)}
+                className="h-10 w-14 rounded border border-input bg-secondary p-1"
+              />
+              <Input value={wizardState.accentColor} onChange={(event) => updateWizard("accentColor", event.target.value)} placeholder="#0ea5e9" />
+            </div>
           </div>
 
           <div className="md:col-span-2 rounded-xl border border-border p-4">
             <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Branding Preview</p>
-            <div
-              className="rounded-lg px-4 py-6"
-              style={{ background: `linear-gradient(120deg, hsl(${wizardState.primaryColor}), hsl(${wizardState.accentColor}))` }}
-            >
+            <div className="rounded-lg px-4 py-6" style={{ background: gradientCss(wizardState.primaryColor, wizardState.accentColor, 120) }}>
               <p className="text-white text-sm font-semibold">{wizardState.name || "Organization Portal"}</p>
               <p className="text-white/80 text-xs">Branded portal header preview</p>
             </div>
@@ -1002,7 +1265,7 @@ function OrganizationsTab() {
         <section className="rounded-xl border border-border bg-card p-5 space-y-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="h-11 w-11 rounded-lg flex items-center justify-center text-white font-semibold" style={{ background: `linear-gradient(130deg, hsl(${selectedOrg.branding.primaryColor}), hsl(${selectedOrg.branding.accentColor}))` }}>
+              <div className="h-11 w-11 rounded-lg flex items-center justify-center text-white font-semibold" style={{ background: gradientCss(selectedOrg.branding.primaryColor, selectedOrg.branding.accentColor, selectedOrg.branding.gradientAngle ?? 130) }}>
                 {selectedOrg.logo}
               </div>
               <div>
@@ -1209,8 +1472,62 @@ function ProgramAssignmentsPanel({
 function BrandingPanel({ org, onSave }: { org: Organization; onSave: (updates: Partial<Organization>) => Promise<void> }) {
   const [logoUrl, setLogoUrl] = useState(org.logoUrl || "");
   const [bannerUrl, setBannerUrl] = useState(org.bannerUrl || "");
-  const [primaryColor, setPrimaryColor] = useState(org.branding.primaryColor);
-  const [accentColor, setAccentColor] = useState(org.branding.accentColor);
+  const [backgroundUrl, setBackgroundUrl] = useState(org.backgroundUrl || "");
+  const [primaryColor, setPrimaryColor] = useState(parseLegacyHslToHex(org.branding.primaryColor, "#2563eb"));
+  const [accentColor, setAccentColor] = useState(parseLegacyHslToHex(org.branding.accentColor, "#0ea5e9"));
+  const [backgroundStartColor, setBackgroundStartColor] = useState(parseLegacyHslToHex(org.branding.backgroundStartColor, "#0f172a"));
+  const [backgroundEndColor, setBackgroundEndColor] = useState(parseLegacyHslToHex(org.branding.backgroundEndColor, "#1d4ed8"));
+  const [bannerStartColor, setBannerStartColor] = useState(parseLegacyHslToHex(org.branding.bannerStartColor, "#1e293b"));
+  const [bannerEndColor, setBannerEndColor] = useState(parseLegacyHslToHex(org.branding.bannerEndColor, "#0ea5e9"));
+  const [gradientAngle, setGradientAngle] = useState(org.branding.gradientAngle ?? 135);
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+  const [isUploadingBackground, setIsUploadingBackground] = useState(false);
+
+  const normalizeUploadedAssetUrl = (assetUrl: string) => {
+    if (/^https?:\/\//i.test(assetUrl)) {
+      return assetUrl;
+    }
+
+    const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? window.location.origin;
+    try {
+      return new URL(assetUrl, apiBaseUrl).toString();
+    } catch {
+      return assetUrl;
+    }
+  };
+
+  const handleAssetUpload = async (file: File | undefined, target: "banner" | "background") => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file");
+      return;
+    }
+
+    if (target === "banner") {
+      setIsUploadingBanner(true);
+    } else {
+      setIsUploadingBackground(true);
+    }
+
+    try {
+      const upload = await uploadLogoFile(file);
+      const resolved = normalizeUploadedAssetUrl(upload.logoUrl);
+      if (target === "banner") {
+        setBannerUrl(resolved);
+      } else {
+        setBackgroundUrl(resolved);
+      }
+      toast.success(`${target === "banner" ? "Banner" : "Background"} image uploaded`);
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      if (target === "banner") {
+        setIsUploadingBanner(false);
+      } else {
+        setIsUploadingBackground(false);
+      }
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -1221,26 +1538,130 @@ function BrandingPanel({ org, onSave }: { org: Organization; onSave: (updates: P
         </div>
 
         <div className="space-y-2 md:col-span-2">
-          <Label>Banner URL</Label>
-          <Input value={bannerUrl} onChange={(event) => setBannerUrl(event.target.value)} />
+          <Label>Banner Image</Label>
+          <div className="flex gap-2">
+            <Input value={bannerUrl} onChange={(event) => setBannerUrl(event.target.value)} placeholder="https://cdn.../banner.jpg" />
+            <Label className="inline-flex h-10 cursor-pointer items-center rounded-md border border-input bg-secondary px-3 text-xs font-medium hover:bg-secondary/80">
+              <Upload className="mr-1.5 h-3.5 w-3.5" /> Upload
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(event) => {
+                  void handleAssetUpload(event.target.files?.[0], "banner");
+                  event.currentTarget.value = "";
+                }}
+              />
+            </Label>
+            <Button type="button" variant="outline" onClick={() => setBannerUrl("")} disabled={isUploadingBanner}>Clear</Button>
+          </div>
+          {isUploadingBanner && <p className="text-xs text-muted-foreground">Uploading banner...</p>}
+        </div>
+
+        <div className="space-y-2 md:col-span-2">
+          <Label>Background Image (Page Backdrop)</Label>
+          <div className="flex gap-2">
+            <Input value={backgroundUrl} onChange={(event) => setBackgroundUrl(event.target.value)} placeholder="https://cdn.../background.jpg" />
+            <Label className="inline-flex h-10 cursor-pointer items-center rounded-md border border-input bg-secondary px-3 text-xs font-medium hover:bg-secondary/80">
+              <Upload className="mr-1.5 h-3.5 w-3.5" /> Upload
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(event) => {
+                  void handleAssetUpload(event.target.files?.[0], "background");
+                  event.currentTarget.value = "";
+                }}
+              />
+            </Label>
+            <Button type="button" variant="outline" onClick={() => setBackgroundUrl("")} disabled={isUploadingBackground}>Clear</Button>
+          </div>
+          {isUploadingBackground && <p className="text-xs text-muted-foreground">Uploading background...</p>}
         </div>
 
         <div className="space-y-2">
-          <Label>Primary Color (HSL)</Label>
-          <Input value={primaryColor} onChange={(event) => setPrimaryColor(event.target.value)} />
+          <Label>Primary Brand Color</Label>
+          <div className="flex items-center gap-2">
+            <input type="color" value={parseLegacyHslToHex(primaryColor, "#2563eb")} onChange={(event) => setPrimaryColor(event.target.value)} className="h-10 w-14 rounded border border-input bg-secondary p-1" />
+            <Input value={primaryColor} onChange={(event) => setPrimaryColor(event.target.value)} />
+          </div>
         </div>
 
         <div className="space-y-2">
-          <Label>Accent Color (HSL)</Label>
-          <Input value={accentColor} onChange={(event) => setAccentColor(event.target.value)} />
+          <Label>Accent Brand Color</Label>
+          <div className="flex items-center gap-2">
+            <input type="color" value={parseLegacyHslToHex(accentColor, "#0ea5e9")} onChange={(event) => setAccentColor(event.target.value)} className="h-10 w-14 rounded border border-input bg-secondary p-1" />
+            <Input value={accentColor} onChange={(event) => setAccentColor(event.target.value)} />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Background Gradient Start</Label>
+          <div className="flex items-center gap-2">
+            <input type="color" value={parseLegacyHslToHex(backgroundStartColor, "#0f172a")} onChange={(event) => setBackgroundStartColor(event.target.value)} className="h-10 w-14 rounded border border-input bg-secondary p-1" />
+            <Input value={backgroundStartColor} onChange={(event) => setBackgroundStartColor(event.target.value)} />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Background Gradient End</Label>
+          <div className="flex items-center gap-2">
+            <input type="color" value={parseLegacyHslToHex(backgroundEndColor, "#1d4ed8")} onChange={(event) => setBackgroundEndColor(event.target.value)} className="h-10 w-14 rounded border border-input bg-secondary p-1" />
+            <Input value={backgroundEndColor} onChange={(event) => setBackgroundEndColor(event.target.value)} />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Banner Gradient Start</Label>
+          <div className="flex items-center gap-2">
+            <input type="color" value={parseLegacyHslToHex(bannerStartColor, "#1e293b")} onChange={(event) => setBannerStartColor(event.target.value)} className="h-10 w-14 rounded border border-input bg-secondary p-1" />
+            <Input value={bannerStartColor} onChange={(event) => setBannerStartColor(event.target.value)} />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Banner Gradient End</Label>
+          <div className="flex items-center gap-2">
+            <input type="color" value={parseLegacyHslToHex(bannerEndColor, "#0ea5e9")} onChange={(event) => setBannerEndColor(event.target.value)} className="h-10 w-14 rounded border border-input bg-secondary p-1" />
+            <Input value={bannerEndColor} onChange={(event) => setBannerEndColor(event.target.value)} />
+          </div>
+        </div>
+
+        <div className="space-y-2 md:col-span-2">
+          <Label>Gradient Angle</Label>
+          <div className="space-y-2 rounded-lg border border-border/60 bg-secondary/40 px-3 py-2">
+            <input type="range" min="0" max="360" value={gradientAngle} onChange={(event) => setGradientAngle(Number(event.target.value))} className="w-full" />
+            <div className="text-[10px] font-mono text-muted-foreground">{gradientAngle}deg</div>
+          </div>
         </div>
       </div>
 
       <div className="rounded-lg border border-border p-4">
         <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Live Preview</p>
-        <div className="rounded-lg px-4 py-7" style={{ background: `linear-gradient(135deg, hsl(${primaryColor}), hsl(${accentColor}))` }}>
-          <p className="text-white font-semibold">{org.name}</p>
-          <p className="text-white/80 text-xs">Portal header preview</p>
+        <div
+          className="rounded-lg border border-border p-3"
+          style={{
+            backgroundImage: backgroundUrl ? `url(${backgroundUrl})` : gradientCss(backgroundStartColor, backgroundEndColor, gradientAngle),
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        >
+          <div
+            className="rounded-lg px-4 py-7"
+            style={{
+              backgroundImage: bannerUrl
+                ? `linear-gradient(rgba(15, 23, 42, 0.38), rgba(15, 23, 42, 0.38)), url(${bannerUrl})`
+                : gradientCss(bannerStartColor, bannerEndColor, gradientAngle),
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+            }}
+          >
+            <p className="text-white font-semibold">{org.name}</p>
+            <p className="text-white/80 text-xs">Banner preview</p>
+          </div>
+          <div className="mt-3 inline-flex h-10 w-10 items-center justify-center rounded-md text-xs font-semibold text-white" style={{ background: gradientCss(primaryColor, accentColor, gradientAngle) }}>
+            {org.logo}
+          </div>
         </div>
       </div>
 
@@ -1250,7 +1671,16 @@ function BrandingPanel({ org, onSave }: { org: Organization; onSave: (updates: P
             await onSave({
               logoUrl,
               bannerUrl,
-              branding: { primaryColor, accentColor },
+              backgroundUrl,
+              branding: {
+                primaryColor,
+                accentColor,
+                backgroundStartColor,
+                backgroundEndColor,
+                bannerStartColor,
+                bannerEndColor,
+                gradientAngle,
+              },
             });
             toast.success("Branding updated");
           } catch (error) {
@@ -1329,11 +1759,6 @@ function SettingsPanel({ org, onSave }: { org: Organization; onSave: (updates: P
   const [phoneNumber, setPhoneNumber] = useState(org.phoneNumber || "");
   const [seatLimit, setSeatLimit] = useState(org.seatLimit);
   const [status, setStatus] = useState<OrganizationStatus>(org.status);
-  const [featureFlags, setFeatureFlags] = useState({
-    advancedAnalytics: true,
-    userProvisioning: true,
-    apiAccess: false,
-  });
 
   return (
     <div className="space-y-4">
@@ -1376,14 +1801,11 @@ function SettingsPanel({ org, onSave }: { org: Organization; onSave: (updates: P
         </div>
       </div>
 
-      <div className="rounded-lg border border-border p-4 space-y-3">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">Feature Flags</p>
-        {Object.entries(featureFlags).map(([key, value]) => (
-          <div key={key} className="flex items-center justify-between">
-            <p className="text-sm">{key}</p>
-            <Switch checked={value} onCheckedChange={(checked) => setFeatureFlags((prev) => ({ ...prev, [key]: checked }))} />
-          </div>
-        ))}
+      <div className="rounded-lg border border-border p-4 space-y-2 text-sm text-muted-foreground">
+        <p className="text-xs uppercase tracking-wider">Feature Flags</p>
+        <p>
+          Feature-level toggles are not persisted by the current organization API yet, so they are hidden from the edit flow for now.
+        </p>
       </div>
 
       <div className="flex justify-end">
@@ -1420,10 +1842,15 @@ export default function AdminPage({ section = "organizations" }: AdminPageProps)
         <h1 className="font-mono text-xl font-bold tracking-tight">
           {isOrganizationsView ? "Organization Management" : "Program Control Center"}
         </h1>
+        <img
+          src="/3_banner.png"
+          alt="Admin banner"
+          className="mt-3 h-24 w-full rounded-md border border-border/60 object-cover"
+        />
         <p className="text-xs text-muted-foreground font-mono">
           {isOrganizationsView
-            ? "Manage organizations, ownership, domains, branding, and org-level access."
-            : "Manage suite-wide programs, launch destinations, and catalog visibility."}
+            ? "Manage organizations, branding, and access."
+            : "Manage programs, launch paths, and visibility."}
         </p>
       </div>
 

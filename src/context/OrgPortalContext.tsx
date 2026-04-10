@@ -3,8 +3,10 @@ import { organizations as seedOrganizations, suiteBundles, users as seedUsers } 
 import {
   createOrgUser as createOrgUserRecord,
   createOrganization as createOrganizationRecord,
+  getPortalBootstrap,
   listOrgUsers,
   listOrganizations,
+  normalizeProgram,
   normalizeOrgUser,
   normalizeOrganization,
   toOrgUserMutationInput,
@@ -15,6 +17,7 @@ import {
 import { usePrograms } from "@/context/ProgramContext";
 import { useAuth } from "@/context/AuthContext";
 import { Bundle, OrgRole, Organization, PortalUser, SuiteProgram } from "@/types/orgPortal";
+import { getOrganizationSlugFromHost } from "@/lib/orgRoutes";
 
 const ORG_STORAGE_KEY = "nxtlvl.organizations";
 const USER_STORAGE_KEY = "nxtlvl.orgUsers";
@@ -49,6 +52,13 @@ function saveUsers(users: PortalUser[]) {
   localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(users));
 }
 
+function toPortalProgramStatus(status: string): SuiteProgram["status"] {
+  if (status === "live") return "active";
+  if (status === "beta") return "beta";
+  if (status === "coming-soon") return "coming-soon";
+  return "maintenance";
+}
+
 interface InviteUserInput {
   orgId: string;
   name: string;
@@ -68,15 +78,25 @@ interface CreateOrganizationInput {
   industryType?: string;
   notes?: string;
   logoUrl?: string;
+  faviconUrl?: string;
   bannerUrl?: string;
   primaryColor: string;
+  secondaryColor?: string;
   accentColor: string;
+  backgroundColor?: string;
+  fontFamily?: string;
   assignedProgramIds: string[];
   assignedBundleIds: string[];
+  enabledModules?: string[];
   planType: Organization["planType"];
   status: Organization["status"];
   seatLimit: number;
   trialEndsAt?: string;
+  supportPhone?: string;
+  billingPlan?: string;
+  customDomain?: string;
+  portalTitle?: string;
+  welcomeMessage?: string;
 }
 
 interface OrgPortalContextType {
@@ -127,6 +147,7 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
   const { authUserId, isAuthenticated } = useAuth();
   const [organizations, setOrganizations] = useState<Organization[]>(() => loadOrganizations());
   const [users, setUsers] = useState<PortalUser[]>(() => loadUsers());
+  const [bootstrapPrograms, setBootstrapPrograms] = useState<SuiteProgram[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const hydrateUsers = useCallback(async (orgRecords: Organization[]) => {
@@ -136,18 +157,28 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const records = await Promise.all(orgRecords.map((organization) => listOrgUsers(organization.id)));
-    const merged = records.flat().map(normalizeOrgUser);
+    const settled = await Promise.allSettled(orgRecords.map((organization) => listOrgUsers(organization.id)));
+    const records = settled.flatMap((result) => {
+      if (result.status === "fulfilled") {
+        return result.value;
+      }
+
+      console.error("Failed to load organization users from API.", result.reason);
+      return [];
+    });
+    const merged = records.map(normalizeOrgUser);
 
     if (merged.length === 0) {
       const legacyUsers = loadUsers().filter((user) => orgRecords.some((organization) => organization.id === user.orgId));
       if (legacyUsers.length > 0) {
-        await Promise.all(
+        await Promise.allSettled(
           legacyUsers.map((user) => createOrgUserRecord(user.orgId, toOrgUserMutationInput(user))),
         );
 
-        const seeded = await Promise.all(orgRecords.map((organization) => listOrgUsers(organization.id)));
-        const normalizedSeededUsers = seeded.flat().map(normalizeOrgUser);
+        const seededSettled = await Promise.allSettled(orgRecords.map((organization) => listOrgUsers(organization.id)));
+        const normalizedSeededUsers = seededSettled
+          .flatMap((result) => (result.status === "fulfilled" ? result.value : []))
+          .map(normalizeOrgUser);
         setUsers(normalizedSeededUsers);
         saveUsers(normalizedSeededUsers);
         return;
@@ -158,7 +189,7 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
     saveUsers(merged);
   }, []);
 
-  const programs = useMemo<SuiteProgram[]>(() => {
+  const catalogSuitePrograms = useMemo<SuiteProgram[]>(() => {
     return catalogPrograms.map((program) => ({
       id: program.id,
       name: program.name,
@@ -168,23 +199,82 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
         .slice(0, 2)
         .map((segment) => segment[0]?.toUpperCase() ?? "")
         .join(""),
+      logoUrl: program.logoUrl,
       launchUrl: program.type === "external" ? program.externalUrl || `/applications/${program.id}` : program.internalRoute || `/applications/${program.id}`,
-      status:
-        program.status === "live"
-          ? "active"
-          : program.status === "beta"
-            ? "beta"
-            : program.status === "coming-soon"
-              ? "coming-soon"
-              : "maintenance",
+      status: toPortalProgramStatus(program.status),
       programDomain: program.slug || program.id.replace(/^program-/, ""),
     }));
   }, [catalogPrograms]);
+
+  const programs = useMemo<SuiteProgram[]>(() => {
+    if (bootstrapPrograms.length === 0) {
+      return catalogSuitePrograms;
+    }
+
+    if (catalogSuitePrograms.length === 0) {
+      return bootstrapPrograms;
+    }
+
+    const merged = new Map(catalogSuitePrograms.map((program) => [program.id, program]));
+    bootstrapPrograms.forEach((program) => {
+      if (!merged.has(program.id)) {
+        merged.set(program.id, program);
+      }
+    });
+
+    return Array.from(merged.values());
+  }, [catalogSuitePrograms, bootstrapPrograms]);
 
   const hydrateOrganizations = useCallback(async () => {
     setIsLoading(true);
 
     try {
+      const portalSlug = typeof window !== "undefined" ? getOrganizationSlugFromHost(window.location.hostname) : null;
+
+      if (portalSlug) {
+        const bootstrap = await getPortalBootstrap();
+        const organization = normalizeOrganization(bootstrap.organization);
+        const normalizedPrograms = bootstrap.enabledPrograms.map(normalizeProgram).map((program) => ({
+          id: program.id,
+          name: program.name,
+          description: program.shortDescription,
+          logo: program.name
+            .split(/\s+/)
+            .slice(0, 2)
+            .map((segment) => segment[0]?.toUpperCase() ?? "")
+            .join(""),
+          logoUrl: program.logoUrl,
+          launchUrl: program.type === "external" ? program.externalUrl || `/applications/${program.id}` : program.internalRoute || `/applications/${program.id}`,
+          status: toPortalProgramStatus(program.status),
+          programDomain: program.slug || program.id.replace(/^program-/, ""),
+        }));
+        setBootstrapPrograms(normalizedPrograms);
+
+        const portalUsers: PortalUser[] = bootstrap.membership
+          ? [
+              {
+                id: bootstrap.membership.userId,
+                orgId: bootstrap.membership.orgId,
+                name: bootstrap.membership.name,
+                email: bootstrap.membership.email,
+                role: bootstrap.membership.role as OrgRole,
+                active: bootstrap.membership.active,
+                assignedProgramIds: normalizedPrograms.map((program) => program.id),
+                authUserId,
+              },
+            ]
+          : [];
+
+        setOrganizations([organization]);
+        setUsers(portalUsers);
+        saveOrganizations([organization]);
+        saveUsers(portalUsers);
+
+        return;
+      }
+
+      setBootstrapPrograms([]);
+
       const records = await listOrganizations();
 
       if (records.length === 0) {
@@ -215,6 +305,7 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
       const fallbackUsers = loadUsers();
       setOrganizations(fallbackOrganizations);
       setUsers(fallbackUsers);
+      setBootstrapPrograms([]);
       saveOrganizations(fallbackOrganizations);
       saveUsers(fallbackUsers);
     } finally {
@@ -250,6 +341,10 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
     if (!user || !user.active) return [];
 
     const orgPrograms = getOrganizationPrograms(org);
+    if (canManageUsers(user.role)) {
+      return orgPrograms;
+    }
+
     const userProgramSet = new Set(user.assignedProgramIds);
     return orgPrograms.filter((program) => userProgramSet.has(program.id));
   };
@@ -295,23 +390,38 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
       supportEmail: input.supportEmail.trim().toLowerCase(),
       logo: initials || "OR",
       logoUrl: input.logoUrl || "",
+      faviconUrl: input.faviconUrl || "",
       bannerUrl: input.bannerUrl || "",
-      welcomeMessage: `Welcome to ${input.name.trim()}. Your organization portal is ready.`,
+      backgroundUrl: "",
+      portalTitle: input.portalTitle?.trim() || "",
+      welcomeMessage: input.welcomeMessage?.trim() || `Welcome to ${input.name.trim()}. Your organization portal is ready.`,
       supportContactName: `${input.name.trim()} Support`,
+      supportPhone: input.supportPhone?.trim() || "",
       phoneNumber: input.phoneNumber?.trim() || "",
       industryType: input.industryType?.trim() || "",
       notes: input.notes?.trim() || "",
       planType: input.planType,
+      billingPlan: input.billingPlan?.trim() || null,
       seatLimit: input.seatLimit,
       status: input.status,
       trialEndsAt: input.trialEndsAt || "",
+      customDomain: input.customDomain?.trim() || null,
       createdAt: now,
       lastActivityAt: now,
       branding: {
         primaryColor: input.primaryColor,
+        secondaryColor: input.secondaryColor || "",
         accentColor: input.accentColor,
+        backgroundColor: input.backgroundColor || "",
+        backgroundStartColor: input.primaryColor,
+        backgroundEndColor: input.accentColor,
+        bannerStartColor: input.primaryColor,
+        bannerEndColor: input.accentColor,
+        gradientAngle: 135,
+        fontFamily: input.fontFamily || "inter",
       },
       assignedProgramIds: input.assignedProgramIds,
+      enabledModules: input.enabledModules || [],
       assignedBundleIds: input.assignedBundleIds,
       announcements: [
         {

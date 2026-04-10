@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Search, Sparkles } from "lucide-react";
 import { CATEGORIES, ProgramStatus } from "@/types/program";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 
 const statuses: { value: ProgramStatus | "all"; label: string }[] = [
   { value: "all", label: "All Statuses" },
@@ -20,6 +21,7 @@ const statuses: { value: ProgramStatus | "all"; label: string }[] = [
 
 export default function ApplicationsPage() {
   const { programs } = usePrograms();
+  const { isPlatformAdmin } = useAuth();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
@@ -27,12 +29,13 @@ export default function ApplicationsPage() {
 
   const filtered = useMemo(() => {
     return programs
+      .filter((p) => isPlatformAdmin || !p.adminOnly)
       .filter((p) => p.isPublic || status === "all")
       .filter((p) => !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.shortDescription.toLowerCase().includes(search.toLowerCase()))
       .filter((p) => category === "all" || p.category === category)
       .filter((p) => status === "all" || p.status === status)
       .sort((a, b) => a.displayOrder - b.displayOrder);
-  }, [programs, search, category, status]);
+  }, [programs, isPlatformAdmin, search, category, status]);
 
   const hasPrograms = programs.length > 0;
 

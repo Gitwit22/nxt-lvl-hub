@@ -9,27 +9,32 @@ import { ProgramProvider } from "@/context/ProgramContext";
 import { OrgPortalLayout } from "@/components/OrgPortalLayout";
 import { AppLayout } from "@/components/AppLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { resolveOrgSlugFromHost } from "@/lib/orgRoutes";
+import { getOrganizationSlugFromHost } from "@/lib/orgRoutes";
+import { useAuth } from "@/context/AuthContext";
 import { useOrgPortal } from "@/context/OrgPortalContext";
+import PublicHomePage from "@/pages/PublicHomePage";
+import PublicAppsPage from "@/pages/PublicAppsPage";
+import PublicAppDetailPage from "@/pages/PublicAppDetailPage";
 import HomePage from "@/pages/HomePage";
 import ApplicationsPage from "@/pages/ApplicationsPage";
 import ProgramDetailPage from "@/pages/ProgramDetailPage";
 import AboutPage from "@/pages/AboutPage";
 import AdminPage from "@/pages/AdminPage";
-import LoginPage from "@/pages/LoginPage";
 import OrgLandingPage from "@/pages/OrgLandingPage";
 import OrgProgramsPage from "@/pages/OrgProgramsPage";
 import OrgUsersPage from "@/pages/OrgUsersPage";
 import OrgSettingsPage from "@/pages/OrgSettingsPage";
+import OrgOrganizationPage from "@/pages/OrgOrganizationPage";
 import AppWorkspacePage from "@/pages/AppWorkspacePage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
 
 function RootResolver() {
-  const { organizations, isLoading } = useOrgPortal();
+  const { isLoading } = useOrgPortal();
+  const { isAuthenticated, isInitializing, isPlatformAdmin } = useAuth();
 
-  if (isLoading) {
+  if (isInitializing || isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -40,13 +45,21 @@ function RootResolver() {
     );
   }
 
-  const subdomainOrgSlug = resolveOrgSlugFromHost(window.location.hostname, organizations);
+  const subdomainOrgSlug = getOrganizationSlugFromHost(window.location.hostname);
 
   if (subdomainOrgSlug) {
     return <Navigate to={`/org/${subdomainOrgSlug}`} replace />;
   }
 
-  return <Navigate to="/admin/organizations" replace />;
+  if (!isAuthenticated) {
+    return <Navigate to="/site/login" replace />;
+  }
+
+  if (isPlatformAdmin) {
+    return <Navigate to="/admin/organizations" replace />;
+  }
+
+  return <Navigate to="/home" replace />;
 }
 
 const App = () => (
@@ -59,19 +72,32 @@ const App = () => (
             <Sonner />
             <BrowserRouter>
               <Routes>
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/" element={<RootResolver />} />
+                <Route path="/" element={<PublicHomePage />} />
+                <Route path="/site/login" element={<PublicHomePage />} />
+                <Route path="/site/create-account" element={<PublicHomePage />} />
+                <Route path="/apps" element={<PublicAppsPage />} />
+                <Route path="/apps/:appSlug" element={<PublicAppDetailPage />} />
+                <Route path="/site/register" element={<Navigate to="/site/create-account" replace />} />
+                <Route path="/login" element={<Navigate to="/site/login" replace />} />
+                <Route path="/signin" element={<Navigate to="/site/login" replace />} />
+                <Route path="/auth/login" element={<Navigate to="/site/login" replace />} />
+                <Route path="/auth/register" element={<Navigate to="/site/create-account" replace />} />
+                <Route path="/dashboard" element={<RootResolver />} />
+                <Route path="/app" element={<RootResolver />} />
 
-                <Route element={<ProtectedRoute requirePlatformAdmin />}>
+                <Route element={<ProtectedRoute />}>
                   <Route element={<AppLayout />}>
                     <Route path="/home" element={<HomePage />} />
                     <Route path="/applications" element={<ApplicationsPage />} />
                     <Route path="/applications/:id" element={<ProgramDetailPage />} />
-                    <Route path="/apps/:appSlug" element={<AppWorkspacePage />} />
+                    <Route path="/workspace/:appSlug" element={<AppWorkspacePage />} />
                     <Route path="/about" element={<AboutPage />} />
-                    <Route path="/admin" element={<Navigate to="/admin/organizations" replace />} />
-                    <Route path="/admin/organizations" element={<AdminPage section="organizations" />} />
-                    <Route path="/admin/programs" element={<AdminPage section="programs" />} />
+
+                    <Route element={<ProtectedRoute requirePlatformAdmin />}>
+                      <Route path="/admin" element={<Navigate to="/admin/organizations" replace />} />
+                      <Route path="/admin/organizations" element={<AdminPage section="organizations" />} />
+                      <Route path="/admin/programs" element={<AdminPage section="programs" />} />
+                    </Route>
                   </Route>
                 </Route>
 
@@ -79,6 +105,7 @@ const App = () => (
                   <Route path="/org/:orgSlug" element={<OrgPortalLayout />}>
                     <Route index element={<OrgLandingPage />} />
                     <Route path="programs" element={<OrgProgramsPage />} />
+                    <Route path="organization" element={<OrgOrganizationPage />} />
                     <Route path="users" element={<OrgUsersPage />} />
                     <Route path="settings" element={<OrgSettingsPage />} />
                   </Route>

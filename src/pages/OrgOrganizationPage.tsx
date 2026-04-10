@@ -1,0 +1,433 @@
+import { FormEvent, useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
+import { canManageUsers, useOrgPortal } from "@/context/OrgPortalContext";
+import { OrgRole, Organization } from "@/types/orgPortal";
+import { OrgUserTable } from "@/components/OrgUserTable";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
+import { changePasswordApi, getErrorMessage } from "@/lib/api";
+
+const defaultInviteRole: OrgRole = "staff";
+
+type OrganizationBrandingForm = {
+  logo: string;
+  logoUrl: string;
+  bannerUrl: string;
+  supportEmail: string;
+  primaryColor: string;
+  accentColor: string;
+};
+
+type OrganizationSettingsForm = {
+  name: string;
+  contactEmail: string;
+  ownerEmail: string;
+  phoneNumber: string;
+  seatLimit: number;
+};
+
+function UsersTab({ org }: { org: Organization }) {
+  const {
+    getUsersForOrganization,
+    getOrganizationPrograms,
+    getOrgCurrentUser,
+    inviteUser,
+    updateUser,
+  } = useOrgPortal();
+
+  const users = useMemo(() => getUsersForOrganization(org.id), [getUsersForOrganization, org.id]);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<OrgRole>(defaultInviteRole);
+  const [selectedProgramIds, setSelectedProgramIds] = useState<string[]>([]);
+
+  const orgPrograms = getOrganizationPrograms(org);
+  const currentUser = getOrgCurrentUser(org.id);
+  const canManage = currentUser ? canManageUsers(currentUser.role) : false;
+
+  const submitInvite = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canManage || !name.trim() || !email.trim()) return;
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail);
+
+    if (!isValidEmail) {
+      toast.error("Enter a valid email address.");
+      return;
+    }
+
+    const duplicateUser = users.some((user) => user.email.toLowerCase() === normalizedEmail);
+    if (duplicateUser) {
+      toast.error("A user with that email already exists in this organization.");
+      return;
+    }
+
+    try {
+      await inviteUser({
+        orgId: org.id,
+        name,
+        email: normalizedEmail,
+        role,
+        assignedProgramIds: selectedProgramIds,
+      });
+
+      toast.success("Invite sent.");
+      setName("");
+      setEmail("");
+      setRole(defaultInviteRole);
+      setSelectedProgramIds([]);
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
+  };
+
+  const toggleSelectedProgram = (programId: string, checked: boolean) => {
+    setSelectedProgramIds((prev) => {
+      if (checked) return [...prev, programId];
+      return prev.filter((id) => id !== programId);
+    });
+  };
+
+  return (
+    <div className="space-y-5">
+      <section className="rounded-xl border border-border bg-card p-5">
+        <h2 className="text-base font-semibold">Invite User</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Send invites and assign starter access from one place.</p>
+
+        <form className="mt-4 grid gap-4 md:grid-cols-2" onSubmit={submitInvite}>
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">Full name</label>
+            <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Alex Morgan" disabled={!canManage} />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">Email</label>
+            <Input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="alex@organization.com" disabled={!canManage} />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">Org Role</label>
+            <Select value={role} onValueChange={(value) => setRole(value as OrgRole)} disabled={!canManage}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="super_admin">Super Admin</SelectItem>
+                <SelectItem value="org_admin">Org Admin</SelectItem>
+                <SelectItem value="manager">Manager</SelectItem>
+                <SelectItem value="staff">Staff</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="md:col-span-2 space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">Program Access</label>
+            <div className="grid gap-2 rounded-lg border border-border p-3 sm:grid-cols-2">
+              {orgPrograms.map((program) => {
+                const checked = selectedProgramIds.includes(program.id);
+                return (
+                  <label key={program.id} className="flex items-center gap-2">
+                    <Checkbox checked={checked} onCheckedChange={(state) => toggleSelectedProgram(program.id, Boolean(state))} disabled={!canManage} />
+                    <span className="text-sm">{program.name}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="md:col-span-2 flex justify-end">
+            <Button type="submit" disabled={!canManage}>Send Invite</Button>
+          </div>
+        </form>
+
+        {!canManage && (
+          <p className="mt-3 text-xs text-amber-400">
+            You are viewing as {currentUser?.role}. Switch to an Org Admin or Super Admin account to invite and manage users.
+          </p>
+        )}
+      </section>
+
+      <section>
+        <OrgUserTable users={users} programs={orgPrograms} canManage={canManage} onUpdateUser={updateUser} />
+      </section>
+    </div>
+  );
+}
+
+function BrandingTab({ org }: { org: Organization }) {
+  const { getOrgCurrentUser, updateOrganization } = useOrgPortal();
+  const currentUser = getOrgCurrentUser(org.id);
+  const canManage = currentUser ? canManageUsers(currentUser.role) : false;
+
+  const [form, setForm] = useState<OrganizationBrandingForm>({
+    logo: org.logo,
+    logoUrl: org.logoUrl || "",
+    bannerUrl: org.bannerUrl || "",
+    supportEmail: org.supportEmail,
+    primaryColor: org.branding.primaryColor || "",
+    accentColor: org.branding.accentColor || "",
+  });
+
+  const setField = <K extends keyof OrganizationBrandingForm>(key: K, value: OrganizationBrandingForm[K]) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const save = async () => {
+    if (!canManage) return;
+
+    try {
+      await updateOrganization(org.id, {
+        logo: form.logo,
+        logoUrl: form.logoUrl,
+        bannerUrl: form.bannerUrl,
+        supportEmail: form.supportEmail,
+        branding: {
+          primaryColor: form.primaryColor,
+          accentColor: form.accentColor,
+        },
+      });
+      toast.success("Branding saved.");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <section className="rounded-xl border border-border bg-card p-5">
+        <h2 className="text-base font-semibold">Branding</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Update logo, banner, support contact, and brand colors for your portal.</p>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Logo Initials</Label>
+            <Input value={form.logo} onChange={(event) => setField("logo", event.target.value)} disabled={!canManage} />
+          </div>
+          <div className="space-y-2">
+            <Label>Support Email</Label>
+            <Input value={form.supportEmail} onChange={(event) => setField("supportEmail", event.target.value)} disabled={!canManage} />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label>Logo URL</Label>
+            <Input value={form.logoUrl} onChange={(event) => setField("logoUrl", event.target.value)} placeholder="https://cdn.../logo.png" disabled={!canManage} />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label>Banner URL</Label>
+            <Input value={form.bannerUrl} onChange={(event) => setField("bannerUrl", event.target.value)} placeholder="https://cdn.../banner.jpg" disabled={!canManage} />
+          </div>
+          <div className="space-y-2">
+            <Label>Primary Brand Color</Label>
+            <Input value={form.primaryColor} onChange={(event) => setField("primaryColor", event.target.value)} placeholder="#2563eb or hsl(...)" disabled={!canManage} />
+          </div>
+          <div className="space-y-2">
+            <Label>Accent Brand Color</Label>
+            <Input value={form.accentColor} onChange={(event) => setField("accentColor", event.target.value)} placeholder="#0ea5e9 or hsl(...)" disabled={!canManage} />
+          </div>
+        </div>
+
+        <div className="mt-4 flex justify-end">
+          <Button onClick={() => void save()} disabled={!canManage}>Save Branding</Button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function SettingsTab({ org }: { org: Organization }) {
+  const { getOrgCurrentUser, updateOrganization } = useOrgPortal();
+  const currentUser = getOrgCurrentUser(org.id);
+  const canManage = currentUser ? canManageUsers(currentUser.role) : false;
+
+  const [form, setForm] = useState<OrganizationSettingsForm>({
+    name: org.name,
+    contactEmail: org.contactEmail,
+    ownerEmail: org.ownerEmail,
+    phoneNumber: org.phoneNumber || "",
+    seatLimit: org.seatLimit,
+  });
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  const setField = <K extends keyof OrganizationSettingsForm>(key: K, value: OrganizationSettingsForm[K]) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const save = async () => {
+    if (!canManage) return;
+
+    try {
+      await updateOrganization(org.id, {
+        name: form.name,
+        contactEmail: form.contactEmail,
+        ownerEmail: form.ownerEmail,
+        phoneNumber: form.phoneNumber,
+        seatLimit: Number(form.seatLimit) || 0,
+      });
+      toast.success("Settings saved.");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
+  };
+
+  const changePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+      toast.error("Fill in all password fields.");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      toast.error("New password must be at least 8 characters.");
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      toast.error("New passwords do not match.");
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      await changePasswordApi(currentPassword, newPassword);
+      toast.success("Password updated.");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <section className="rounded-xl border border-border bg-card p-5">
+        <h2 className="text-base font-semibold">Organization Settings</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Maintain organization profile and operational details.</p>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Organization Name</Label>
+            <Input value={form.name} onChange={(event) => setField("name", event.target.value)} disabled={!canManage} />
+          </div>
+          <div className="space-y-2">
+            <Label>Seat Limit</Label>
+            <Input type="number" value={form.seatLimit} onChange={(event) => setField("seatLimit", Number(event.target.value) || 0)} disabled={!canManage} />
+          </div>
+          <div className="space-y-2">
+            <Label>Contact Email</Label>
+            <Input value={form.contactEmail} onChange={(event) => setField("contactEmail", event.target.value)} disabled={!canManage} />
+          </div>
+          <div className="space-y-2">
+            <Label>Owner Email</Label>
+            <Input value={form.ownerEmail} onChange={(event) => setField("ownerEmail", event.target.value)} disabled={!canManage} />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label>Phone Number</Label>
+            <Input value={form.phoneNumber} onChange={(event) => setField("phoneNumber", event.target.value)} disabled={!canManage} />
+          </div>
+        </div>
+
+        <div className="mt-4 flex justify-end">
+          <Button onClick={() => void save()} disabled={!canManage}>Save Settings</Button>
+        </div>
+
+        {!canManage && (
+          <p className="mt-3 text-xs text-amber-400">
+            You are viewing as {currentUser?.role}. Only Super Admin and Org Admin can update organization details.
+          </p>
+        )}
+      </section>
+
+      <section className="rounded-xl border border-border bg-card p-5">
+        <h2 className="text-base font-semibold">Change Password</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Update your account password used for Suite sign in.</p>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="space-y-2 md:col-span-2">
+            <Label>Current Password</Label>
+            <Input
+              type="password"
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              autoComplete="current-password"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>New Password</Label>
+            <Input
+              type="password"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              autoComplete="new-password"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Confirm New Password</Label>
+            <Input
+              type="password"
+              value={confirmNewPassword}
+              onChange={(event) => setConfirmNewPassword(event.target.value)}
+              autoComplete="new-password"
+            />
+          </div>
+        </div>
+
+        <div className="mt-4 flex justify-end">
+          <Button onClick={() => void changePassword()} disabled={isChangingPassword}>
+            {isChangingPassword ? "Updating..." : "Update Password"}
+          </Button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export default function OrgOrganizationPage() {
+  const { orgSlug = "" } = useParams();
+  const { getOrganizationBySlug } = useOrgPortal();
+
+  const org = getOrganizationBySlug(orgSlug);
+
+  if (!org) {
+    return <p className="text-sm text-muted-foreground">Unknown organization.</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Organization Portal</p>
+        <h1 className="text-2xl font-semibold">Organization</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Manage users, branding, and settings for this portal.</p>
+      </div>
+
+      <Tabs defaultValue="users" className="space-y-4">
+        <TabsList className="w-full justify-start flex-wrap h-auto gap-1 bg-transparent p-0">
+          <TabsTrigger value="users" className="bg-secondary/40 data-[state=active]:bg-secondary">Users</TabsTrigger>
+          <TabsTrigger value="branding" className="bg-secondary/40 data-[state=active]:bg-secondary">Branding</TabsTrigger>
+          <TabsTrigger value="settings" className="bg-secondary/40 data-[state=active]:bg-secondary">Settings</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="users" className="space-y-4">
+          <UsersTab org={org} />
+        </TabsContent>
+
+        <TabsContent value="branding" className="space-y-4">
+          <BrandingTab org={org} />
+        </TabsContent>
+
+        <TabsContent value="settings" className="space-y-4">
+          <SettingsTab org={org} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

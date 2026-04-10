@@ -1,5 +1,5 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { suitePrograms } from "@/data/orgPortalSeed";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { programCatalogSeed } from "@/data/programCatalogSeed";
 import {
   createProgram as createProgramRecord,
   deleteProgram as deleteProgramRecord,
@@ -9,6 +9,7 @@ import {
   updateProgram as updateProgramRecord,
 } from "@/lib/api";
 import { Program } from "@/types/program";
+import { useAuth } from "@/context/AuthContext";
 
 const PROGRAM_STORAGE_KEY = "nltops.programs";
 
@@ -30,36 +31,8 @@ function savePrograms(programs: Program[]) {
 function getDefaultPrograms(): Program[] {
   const now = new Date().toISOString();
 
-  return suitePrograms.map((program, index) => ({
-    id: program.id,
-    slug: program.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
-    name: program.name,
-    shortDescription: program.description,
-    longDescription: program.description,
-    category: "Operations",
-    tags: [],
-    status:
-      program.status === "active"
-        ? "live"
-        : program.status === "beta"
-          ? "beta"
-          : program.status === "maintenance"
-            ? "internal"
-            : "coming-soon",
-    type: program.launchUrl.startsWith("http") ? "external" : "internal",
-    origin: "suite-native",
-    internalRoute: program.launchUrl.startsWith("http") ? undefined : program.launchUrl,
-    externalUrl: program.launchUrl.startsWith("http") ? program.launchUrl : undefined,
-    openInNewTab: program.launchUrl.startsWith("http"),
-    logoUrl: "",
-    accentColor: "",
-    isFeatured: index < 3,
-    isPublic: true,
-    requiresLogin: false,
-    requiresApproval: false,
-    launchLabel: program.status === "coming-soon" ? "Coming Soon" : "Launch",
-    displayOrder: index + 1,
-    notes: "",
+  return programCatalogSeed.map((program) => ({
+    ...program,
     createdAt: now,
     updatedAt: now,
   }));
@@ -79,6 +52,9 @@ const ProgramContext = createContext<ProgramContextType | undefined>(undefined);
 export function ProgramProvider({ children }: { children: React.ReactNode }) {
   const [programs, setPrograms] = useState<Program[]>(() => loadPrograms());
   const [isLoading, setIsLoading] = useState(true);
+  const { isAuthenticated } = useAuth();
+  // Track the last auth state so we only re-hydrate on the transition to true.
+  const prevAuthRef = useRef(isAuthenticated);
 
   const hydratePrograms = useCallback(async () => {
     setIsLoading(true);
@@ -91,7 +67,14 @@ export function ProgramProvider({ children }: { children: React.ReactNode }) {
         const fallbackPrograms = legacyPrograms.length > 0 ? legacyPrograms : getDefaultPrograms();
 
         if (fallbackPrograms.length > 0) {
-          await Promise.all(fallbackPrograms.map((program) => createProgramRecord(toProgramMutationInput(program))));
+          // Seed programs one-by-one so a single failure doesn't block the rest.
+          await Promise.allSettled(
+            fallbackPrograms.map((program) =>
+              createProgramRecord(toProgramMutationInput(program)).catch((err) => {
+                console.warn("[programs] Seed create failed for", program.id, err);
+              }),
+            ),
+          );
           const seededRecords = await listPrograms();
           const normalizedPrograms = seededRecords.map(normalizeProgram);
           setPrograms(normalizedPrograms);
@@ -116,8 +99,15 @@ export function ProgramProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void hydratePrograms();
-  }, [hydratePrograms]);
+    const wasAuthenticated = prevAuthRef.current;
+    prevAuthRef.current = isAuthenticated;
+
+    // Always hydrate on first mount, and re-hydrate when auth transitions to true
+    // (e.g. after login) so the backend gets fresh programs with valid IDs.
+    if (isAuthenticated || !wasAuthenticated) {
+      void hydratePrograms();
+    }
+  }, [hydratePrograms, isAuthenticated]);
 
   const addProgram = useCallback(async (data: Omit<Program, "id" | "createdAt" | "updatedAt">) => {
     const now = new Date().toISOString();
@@ -149,7 +139,34 @@ export function ProgramProvider({ children }: { children: React.ReactNode }) {
       updatedAt: new Date().toISOString(),
     };
 
-    const updated = await updateProgramRecord(id, toProgramMutationInput(merged));
+    let updated: Awaited<ReturnType<typeof updateProgramRecord>>;
+    try {
+      updated = await updateProgramRecord(id, toProgramMutationInput(merged));
+    } catch (updateError) {
+      // The program's local ID doesn't exist in the backend (stale localStorage or
+      // wiped server data).  Re-create it under a fresh UUID so the edit is not lost.
+      const isNotFound =
+        updateError instanceof Error &&
+        (updateError.message.toLowerCase().includes("not found") || updateError.message.includes("404"));
+
+      if (!isNotFound) {
+        throw updateError;
+      }
+
+      console.warn("[programs] Program not found on server, recreating:", id);
+      const fresh: Program = { ...merged, id: crypto.randomUUID(), createdAt: merged.createdAt || new Date().toISOString() };
+      updated = await createProgramRecord(toProgramMutationInput(fresh));
+
+      // Replace the stale local entry with the newly created backend record.
+      setPrograms((prev) => {
+        const next = prev
+          .map((p) => (p.id === id ? normalizeProgram(updated) : p))
+          .sort((l, r) => l.displayOrder - r.displayOrder);
+        savePrograms(next);
+        return next;
+      });
+      return;
+    }
 
     setPrograms((prev) => {
       const next = prev

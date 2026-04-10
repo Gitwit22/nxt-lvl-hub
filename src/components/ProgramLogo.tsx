@@ -9,6 +9,14 @@ interface ProgramLogoProps {
   textClassName?: string;
 }
 
+function resolveProgramColor(color?: string) {
+  if (!color) return undefined;
+  if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl") || color.startsWith("var(")) {
+    return color;
+  }
+  return `hsl(${color})`;
+}
+
 export function ProgramLogo({ name, logoUrl, accentColor, className, textClassName }: ProgramLogoProps) {
   if (logoUrl) {
     return (
@@ -25,7 +33,7 @@ export function ProgramLogo({ name, logoUrl, accentColor, className, textClassNa
         className,
         textClassName
       )}
-      style={accentColor ? { color: `hsl(${accentColor})` } : {}}
+      style={resolveProgramColor(accentColor) ? { color: resolveProgramColor(accentColor) } : {}}
       aria-label={`${name} logo placeholder`}
     >
       {name.trim() ? name.charAt(0).toUpperCase() : <ImageIcon className="h-4 w-4" />}

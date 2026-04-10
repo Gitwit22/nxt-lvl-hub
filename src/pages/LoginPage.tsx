@@ -1,125 +1,211 @@
-import { FormEvent, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "@/context/AuthContext";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { SiteShell } from "@/components/public/SiteShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/context/AuthContext";
+import { useOrgPortal } from "@/context/OrgPortalContext";
+import { getErrorMessage } from "@/lib/api";
 
-export default function LoginPage() {
-  const { login, register } = useAuth();
+type AuthMode = "signin" | "signup";
+
+function resolveRedirectPath(
+  profile: { isPlatformAdmin: boolean; orgMemberships: Array<{ orgId: string; active: boolean }> },
+  getOrganizationById: (orgId: string) => { slug: string } | undefined,
+): string {
+  if (profile.isPlatformAdmin) {
+    return "/admin/organizations";
+  }
+
+  const primaryMembership = profile.orgMemberships.find((membership) => membership.active);
+  if (primaryMembership) {
+    const org = getOrganizationById(primaryMembership.orgId);
+    if (org?.slug) {
+      return `/org/${org.slug}`;
+    }
+  }
+
+  return "/home";
+}
+
+function SuiteAuthPage({ mode }: { mode: AuthMode }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname ?? "/admin/organizations";
+  const [searchParams] = useSearchParams();
+  const { isAuthenticated, isInitializing, me, login, register } = useAuth();
+  const { getOrganizationById } = useOrgPortal();
 
-  const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [setupToken, setSetupToken] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const returnTo = useMemo(() => {
+    const explicitReturnTo = searchParams.get("returnTo");
+    if (explicitReturnTo?.startsWith("/") && explicitReturnTo !== "/") {
+      return explicitReturnTo;
+    }
+
+    const stateFrom = (location.state as { from?: { pathname?: string; search?: string; hash?: string } } | null)?.from;
+    if (stateFrom?.pathname && stateFrom.pathname !== "/") {
+      return `${stateFrom.pathname}${stateFrom.search || ""}${stateFrom.hash || ""}`;
+    }
+
+    return "";
+  }, [location.state, searchParams]);
+
+  useEffect(() => {
+    if (isInitializing || !isAuthenticated || !me) return;
+    const destination = returnTo || resolveRedirectPath(me, getOrganizationById);
+    navigate(destination, { replace: true });
+  }, [getOrganizationById, isAuthenticated, isInitializing, me, navigate, returnTo]);
+
+  const submitAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setError(null);
+    setErrorMessage("");
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      setErrorMessage("Email is required.");
+      return;
+    }
+
+    if (!password) {
+      setErrorMessage("Password is required.");
+      return;
+    }
+
+    if (mode === "signup") {
+      if (password.length < 8) {
+        setErrorMessage("Password must be at least 8 characters.");
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        setErrorMessage("Passwords do not match.");
+        return;
+      }
+    }
+
     setIsSubmitting(true);
 
     try {
-      if (mode === "login") {
-        await login(email, password);
-      } else {
-        await register(email, password, setupToken || undefined);
-      }
-      navigate(from, { replace: true });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Authentication failed.");
+      const profile =
+        mode === "signin"
+          ? await login(normalizedEmail, password)
+          : await register(normalizedEmail, password);
+
+      const destination = returnTo || resolveRedirectPath(profile, getOrganizationById);
+      navigate(destination, { replace: true });
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const activeTab = mode;
+
+  if (isInitializing || isAuthenticated) {
+    return null;
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm space-y-6">
-        <div className="space-y-1 text-center">
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Nxt Lvl Suite</p>
-          <h1 className="text-2xl font-semibold">
-            {mode === "login" ? "Sign In" : "Create Account"}
-          </h1>
+    <SiteShell>
+      <div className="mx-auto w-full max-w-xl">
+        <div className="rounded-[1.75rem] border border-white/15 bg-slate-950/70 p-6 shadow-[0_20px_60px_rgba(8,15,30,0.45)] backdrop-blur-xl sm:p-8">
+          <p className="text-xs uppercase tracking-[0.22em] text-sky-100/80">Nxt Lvl Suites</p>
+          <h1 className="mt-2 text-2xl font-semibold text-white">{mode === "signin" ? "Sign in" : "Create your account"}</h1>
+          <p className="mt-2 text-sm text-slate-300">
+            {mode === "signin"
+              ? "Authenticate directly with the Suite to access your organization and applications."
+              : "Create a Suite account to get access to your organization workspace and assigned programs."}
+          </p>
+
+          <Tabs value={activeTab} className="mt-6">
+            <TabsList className="grid w-full grid-cols-2 bg-slate-900/80">
+              <TabsTrigger value="signin" asChild>
+                <Link to="/site/login">Sign In</Link>
+              </TabsTrigger>
+              <TabsTrigger value="signup" asChild>
+                <Link to="/site/create-account">Create Account</Link>
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value={activeTab} className="mt-4">
+              <form onSubmit={submitAuth} className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-slate-200">Email</Label>
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="you@organization.com"
+                    autoComplete="email"
+                    className="bg-slate-900/70 text-slate-100"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-slate-200">Password</Label>
+                  <Input
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                    className="bg-slate-900/70 text-slate-100"
+                  />
+                </div>
+
+                {mode === "signup" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label className="text-slate-200">Confirm Password</Label>
+                      <Input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(event) => setConfirmPassword(event.target.value)}
+                        autoComplete="new-password"
+                        className="bg-slate-900/70 text-slate-100"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {errorMessage && <p className="text-sm text-red-300">{errorMessage}</p>}
+
+                <Button type="submit" disabled={isSubmitting} className="w-full">
+                  {isSubmitting
+                    ? mode === "signin"
+                      ? "Signing in..."
+                      : "Creating account..."
+                    : mode === "signin"
+                      ? "Sign In"
+                      : "Create Account"}
+                </Button>
+
+                {mode === "signup" && (
+                  <p className="rounded-lg border border-sky-300/20 bg-sky-500/10 px-3 py-2 text-xs leading-relaxed text-sky-100">
+                    After your account is created, you can create an organization, launch your organization portal,
+                    and invite users from your in-suite dashboard.
+                  </p>
+                )}
+              </form>
+            </TabsContent>
+          </Tabs>
         </div>
-
-        <form className="space-y-4 rounded-xl border border-border bg-card p-6" onSubmit={handleSubmit}>
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete={mode === "login" ? "current-password" : "new-password"}
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-
-          {mode === "register" && (
-            <div className="space-y-2">
-              <Label htmlFor="setupToken">
-                Platform Setup Token{" "}
-                <span className="text-xs font-normal text-muted-foreground">(optional)</span>
-              </Label>
-              <Input
-                id="setupToken"
-                type="password"
-                autoComplete="off"
-                placeholder="Leave blank for standard account"
-                value={setupToken}
-                onChange={(e) => setSetupToken(e.target.value)}
-              />
-            </div>
-          )}
-
-          {error && (
-            <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </p>
-          )}
-
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting
-              ? "Please wait…"
-              : mode === "login"
-                ? "Sign In"
-                : "Create Account"}
-          </Button>
-        </form>
-
-        <p className="text-center text-sm text-muted-foreground">
-          {mode === "login" ? "Don't have an account?" : "Already have an account?"}{" "}
-          <button
-            type="button"
-            className="font-medium text-primary underline-offset-4 hover:underline"
-            onClick={() => {
-              setMode(mode === "login" ? "register" : "login");
-              setError(null);
-            }}
-          >
-            {mode === "login" ? "Create one" : "Sign in"}
-          </button>
-        </p>
       </div>
-    </div>
+    </SiteShell>
   );
+}
+
+export default function LoginPage() {
+  return <SuiteAuthPage mode="signin" />;
+}
+
+export function CreateAccountPage() {
+  return <SuiteAuthPage mode="signup" />;
 }

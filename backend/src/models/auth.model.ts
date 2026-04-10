@@ -19,6 +19,7 @@ export interface AuthTokenClaims {
   email: string;
   partition: string;
   isPlatformAdmin: boolean;
+  organizationId?: string;
 }
 
 export interface RefreshTokenClaims {

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { PrismaClient } from "@prisma/client";
 import { authUserRepository, organizationRepository, orgUserRepository } from "../database/repositories.js";
 import type {
   AuthTokenClaims,
@@ -12,6 +13,8 @@ import type {
 } from "../models/auth.model.js";
 import { AppError } from "../utils/app-error.js";
 import { env } from "../config/env.js";
+
+const prisma = new PrismaClient();
 
 const BCRYPT_ROUNDS = 12;
 
@@ -69,17 +72,50 @@ export class AuthService {
     const partition = env.appPartitionDefault;
     const email = input.email.trim().toLowerCase();
 
-    const user = await authUserRepository.findByEmail(partition, email);
+    // Try Prisma first (new org-based model)
+    try {
+      const user = await prisma.user.findUnique({
+        where: { email },
+        include: {
+          memberships: {
+            include: { organization: true },
+            where: { organization: { isActive: true } },
+            take: 1,
+          },
+        },
+      });
+
+      if (user && user.isActive) {
+        const valid = await bcrypt.compare(input.password, user.passwordHash);
+        if (!valid) {
+          throw new AppError("Invalid email or password.", 401);
+        }
+
+        // Use Prisma user - with organization if they have active memberships
+        const membership = user.memberships?.[0];
+        const organizationId = membership?.organizationId || "default-org";
+        return this.issueTokensPrisma(user, organizationId, partition);
+      }
+    } catch (err) {
+      // If it's our AppError, rethrow it
+      if (err instanceof AppError) {
+        throw err;
+      }
+      // Otherwise fall through to legacy JSON store
+    }
+
+    // Fallback to legacy JSON store for backward compatibility
+    const legacyUser = await authUserRepository.findByEmail(partition, email);
 
     // Always run bcrypt to prevent timing oracle attacks.
-    const hash = user?.passwordHash ?? DUMMY_HASH;
+    const hash = legacyUser?.passwordHash ?? DUMMY_HASH;
     const valid = await bcrypt.compare(input.password, hash);
 
-    if (!user || user.deletedAt || !valid) {
+    if (!legacyUser || legacyUser.deletedAt || !valid) {
       throw new AppError("Invalid email or password.", 401);
     }
 
-    return this.issueTokens(user, partition);
+    return this.issueTokens(legacyUser, partition);
   }
 
   async refreshTokens(rawRefreshToken: string): Promise<{ tokens: AuthTokens; refreshToken: string }> {
@@ -104,6 +140,38 @@ export class AuthService {
   }
 
   async getMe(authUserId: string, partition: string): Promise<MeResponse> {
+    // Try Prisma first (new org-based model)
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: authUserId },
+        include: {
+          memberships: {
+            include: { organization: true },
+            where: { organization: { isActive: true } },
+          },
+        },
+      });
+
+      if (user && user.isActive) {
+        const orgMemberships = user.memberships.map((m) => ({
+          orgId: m.organizationId,
+          orgName: m.organization.name,
+          role: m.role,
+          active: true,
+        }));
+
+        return {
+          id: user.id,
+          email: user.email,
+          isPlatformAdmin: false,
+          orgMemberships,
+        };
+      }
+    } catch {
+      // Fall through to legacy lookup
+    }
+
+    // Fallback to legacy JSON store
     const user = await authUserRepository.findById(partition, authUserId);
     if (!user || user.deletedAt) {
       throw new AppError("Account not found.", 401);
@@ -220,9 +288,46 @@ export class AuthService {
     } as Parameters<typeof jwt.sign>[2]);
 
     const decoded = jwt.decode(accessToken) as { exp: number };
+    const expiresInSeconds = Math.floor(decoded.exp - Date.now() / 1000);
 
     return {
-      tokens: { accessToken, expiresIn: decoded.exp },
+      tokens: { accessToken, expiresIn: expiresInSeconds },
+      refreshToken,
+    };
+  }
+
+  issueTokensPrisma(
+    user: { id: string; email: string },
+    organizationId: string,
+    partition: string,
+  ): { tokens: AuthTokens; refreshToken: string } {
+    const accessClaims: AuthTokenClaims & { organizationId?: string } = {
+      sub: user.id,
+      email: user.email,
+      partition,
+      isPlatformAdmin: false,
+      organizationId,
+    };
+
+    const accessToken = jwt.sign(accessClaims, env.jwtSecret, {
+      expiresIn: env.jwtExpiresIn,
+    } as Parameters<typeof jwt.sign>[2]);
+
+    const refreshClaims: RefreshTokenClaims = {
+      sub: user.id,
+      partition,
+      type: "refresh",
+    };
+
+    const refreshToken = jwt.sign(refreshClaims, env.jwtRefreshSecret, {
+      expiresIn: env.jwtRefreshExpiresIn,
+    } as Parameters<typeof jwt.sign>[2]);
+
+    const decoded = jwt.decode(accessToken) as { exp: number };
+    const expiresInSeconds = Math.floor(decoded.exp - Date.now() / 1000);
+
+    return {
+      tokens: { accessToken, expiresIn: expiresInSeconds },
       refreshToken,
     };
   }

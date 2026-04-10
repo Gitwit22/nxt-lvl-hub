@@ -1,12 +1,15 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { useOrgPortal } from "@/context/OrgPortalContext";
+import { getOrganizationSlugFromHost, SUITE_DOMAIN } from "@/lib/orgRoutes";
 
 interface ProtectedRouteProps {
   requirePlatformAdmin?: boolean;
 }
 
 export function ProtectedRoute({ requirePlatformAdmin = false }: ProtectedRouteProps) {
-  const { isInitializing, isAuthenticated, isPlatformAdmin } = useAuth();
+  const { isInitializing, isAuthenticated, isPlatformAdmin, me } = useAuth();
+  const { organizations } = useOrgPortal();
   const location = useLocation();
 
   if (isInitializing) {
@@ -18,20 +21,25 @@ export function ProtectedRoute({ requirePlatformAdmin = false }: ProtectedRouteP
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    const portalSlug = getOrganizationSlugFromHost(window.location.hostname);
+    if (portalSlug) {
+      const returnTo = encodeURIComponent(window.location.href);
+      window.location.assign(`https://${SUITE_DOMAIN}/site/login?returnTo=${returnTo}`);
+      return null;
+    }
+
+    return <Navigate to="/site/login" state={{ from: location }} replace />;
   }
 
   if (requirePlatformAdmin && !isPlatformAdmin) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <div className="text-center">
-          <h1 className="text-xl font-semibold">Access Denied</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Platform admin access is required to view this page.
-          </p>
-        </div>
-      </div>
-    );
+    const primaryOrgId = me?.orgMemberships[0]?.orgId;
+    const organization = organizations.find((candidate) => candidate.id === primaryOrgId);
+
+    if (organization?.slug) {
+      return <Navigate to={`/org/${organization.slug}`} replace />;
+    }
+
+    return <Navigate to="/" replace />;
   }
 
   return <Outlet />;

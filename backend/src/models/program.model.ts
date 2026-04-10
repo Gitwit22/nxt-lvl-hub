@@ -14,6 +14,7 @@ export interface ProgramRecord {
   shortDescription: string;
   longDescription: string;
   category: string;
+  secondaryCategory: string | null;
   status: ProgramStatus;
   tags: string[];
   logoUrl: string | null;
@@ -23,6 +24,12 @@ export interface ProgramRecord {
   internalRoute: string | null;
   externalUrl: string | null;
   openInNewTab: boolean;
+  cardBackgroundColor: string | null;
+  cardBackgroundOpacity: number | null;
+  cardGlowColor: string | null;
+  cardGlowOpacity: number | null;
+  cardHoverTintOpacity: number | null;
+  adminOnly: boolean;
   isFeatured: boolean;
   isPublic: boolean;
   requiresLogin: boolean;

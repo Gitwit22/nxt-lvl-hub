@@ -3,6 +3,7 @@ import { organizationService } from "../services/organization.service.js";
 import { orgUserRepository } from "../database/repositories.js";
 import { sendSuccess } from "../utils/response.js";
 import { getRequestPartition } from "../utils/partition.js";
+import { getPortalUrlForSlug } from "../utils/portal-host.js";
 
 function getRouteId(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value || "";
@@ -41,7 +42,15 @@ export async function getOrganization(request: Request, response: Response) {
 export async function createOrganization(request: Request, response: Response) {
   const partitionKey = getRequestPartition(request);
   const organization = await organizationService.create(partitionKey, request.body);
-  return sendSuccess(response, organization, "Organization created.", 201);
+  return sendSuccess(
+    response,
+    {
+      ...organization,
+      portalUrl: getPortalUrlForSlug(organization.slug),
+    },
+    "Organization created.",
+    201,
+  );
 }
 
 export async function updateOrganization(request: Request, response: Response) {
