@@ -349,6 +349,13 @@ export async function registerApi(email: string, password: string, setupToken?: 
   return normalizeAuthResponse(payload);
 }
 
+export async function changePasswordApi(currentPassword: string, newPassword: string): Promise<void> {
+  await apiRequest<void>("/api/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}
+
 export async function logoutApi(): Promise<void> {
   await apiRequest<void>("/api/auth/logout", { method: "POST" });
 }

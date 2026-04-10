@@ -2,6 +2,7 @@ import { SuiteProgram } from "@/types/orgPortal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowUpRight, Clock3, Wrench } from "lucide-react";
+import { getAccessToken } from "@/lib/api";
 
 interface OrgProgramCardProps {
   program: SuiteProgram;
@@ -14,12 +15,39 @@ const statusClass: Record<SuiteProgram["status"], string> = {
   "coming-soon": "bg-muted text-muted-foreground border-border",
 };
 
+const SUITE_LAUNCH_HOST_HINTS = ["community-chronicle", "mission-hub"];
+const LANDING_FIRST_HOST_HINTS = ["community-chronicle"];
+
 export function OrgProgramCard({ program }: OrgProgramCardProps) {
   const isLaunchable = program.status === "active" || program.status === "beta";
+
+  const resolveExternalLaunchUrl = (url: string) => {
+    const token = getAccessToken();
+    if (!token) return url;
+
+    try {
+      const target = new URL(url, window.location.origin);
+      const host = target.hostname.toLowerCase();
+      const supportsSuiteLaunch = SUITE_LAUNCH_HOST_HINTS.some((hint) => host.includes(hint));
+      if (!supportsSuiteLaunch) {
+        return url;
+      }
+
+      const shouldOpenLandingFirst = LANDING_FIRST_HOST_HINTS.some((hint) => host.includes(hint));
+      target.pathname = shouldOpenLandingFirst ? "/landing" : "/launch";
+      if (!target.searchParams.get("token")) {
+        target.searchParams.set("token", token);
+      }
+      return target.toString();
+    } catch {
+      return url;
+    }
+  };
+
   const launchProgram = () => {
     if (!isLaunchable) return;
     if (program.launchUrl.startsWith("http")) {
-      window.open(program.launchUrl, "_blank", "noopener,noreferrer");
+      window.open(resolveExternalLaunchUrl(program.launchUrl), "_blank", "noopener,noreferrer");
       return;
     }
     window.location.assign(program.launchUrl);

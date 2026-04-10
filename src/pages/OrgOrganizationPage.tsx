@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { getErrorMessage } from "@/lib/api";
+import { changePasswordApi, getErrorMessage } from "@/lib/api";
 
 const defaultInviteRole: OrgRole = "staff";
 
@@ -251,6 +251,10 @@ function SettingsTab({ org }: { org: Organization }) {
     phoneNumber: org.phoneNumber || "",
     seatLimit: org.seatLimit,
   });
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const setField = <K extends keyof OrganizationSettingsForm>(key: K, value: OrganizationSettingsForm[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -270,6 +274,36 @@ function SettingsTab({ org }: { org: Organization }) {
       toast.success("Settings saved.");
     } catch (error) {
       toast.error(getErrorMessage(error));
+    }
+  };
+
+  const changePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+      toast.error("Fill in all password fields.");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      toast.error("New password must be at least 8 characters.");
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      toast.error("New passwords do not match.");
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      await changePasswordApi(currentPassword, newPassword);
+      toast.success("Password updated.");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -311,6 +345,47 @@ function SettingsTab({ org }: { org: Organization }) {
             You are viewing as {currentUser?.role}. Only Super Admin and Org Admin can update organization details.
           </p>
         )}
+      </section>
+
+      <section className="rounded-xl border border-border bg-card p-5">
+        <h2 className="text-base font-semibold">Change Password</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Update your account password used for Suite sign in.</p>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="space-y-2 md:col-span-2">
+            <Label>Current Password</Label>
+            <Input
+              type="password"
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              autoComplete="current-password"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>New Password</Label>
+            <Input
+              type="password"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              autoComplete="new-password"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Confirm New Password</Label>
+            <Input
+              type="password"
+              value={confirmNewPassword}
+              onChange={(event) => setConfirmNewPassword(event.target.value)}
+              autoComplete="new-password"
+            />
+          </div>
+        </div>
+
+        <div className="mt-4 flex justify-end">
+          <Button onClick={() => void changePassword()} disabled={isChangingPassword}>
+            {isChangingPassword ? "Updating..." : "Update Password"}
+          </Button>
+        </div>
       </section>
     </div>
   );
