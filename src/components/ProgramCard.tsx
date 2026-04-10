@@ -13,7 +13,6 @@ interface ProgramCardProps {
 }
 
 const SUITE_LAUNCH_HOST_HINTS = ["community-chronicle", "mission-hub"];
-const LANDING_FIRST_HOST_HINTS = ["community-chronicle"];
 
 function resolveProgramColor(color?: string) {
   if (!color) return undefined;
@@ -71,9 +70,7 @@ export function ProgramCard({ program, compact }: ProgramCardProps) {
         return url;
       }
 
-      // Community Chronicle intentionally lands on a public page first.
-      const shouldOpenLandingFirst = LANDING_FIRST_HOST_HINTS.some((hint) => host.includes(hint));
-      target.pathname = shouldOpenLandingFirst ? "/landing" : "/launch";
+      target.pathname = "/launch";
       if (!target.searchParams.get("token")) {
         target.searchParams.set("token", token);
       }
