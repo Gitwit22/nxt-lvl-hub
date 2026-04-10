@@ -39,7 +39,7 @@ function resolveRedirectPath(
 function MainPageAuthPanel() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const { isAuthenticated, me, login, register } = useAuth();
   const { getOrganizationById } = useOrgPortal();
 
@@ -50,7 +50,12 @@ function MainPageAuthPanel() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const authParam = searchParams.get("auth");
-  const tab: AuthMode = authParam === "signup" ? "signup" : "signin";
+  const pathTab: AuthMode | null = location.pathname === "/site/create-account"
+    ? "signup"
+    : location.pathname === "/site/login"
+      ? "signin"
+      : null;
+  const tab: AuthMode = pathTab ?? (authParam === "signup" ? "signup" : "signin");
 
   const returnTo = useMemo(() => {
     const explicitReturnTo = searchParams.get("returnTo");
@@ -67,15 +72,21 @@ function MainPageAuthPanel() {
   }, [location.state, searchParams]);
 
   useEffect(() => {
-    if (!isAuthenticated || !me || !authParam) return;
+    const isAuthEntryRoute = Boolean(authParam) || pathTab !== null;
+    if (!isAuthenticated || !me || !isAuthEntryRoute) return;
     const destination = returnTo || resolveRedirectPath(me, getOrganizationById);
     navigate(destination, { replace: true });
-  }, [authParam, getOrganizationById, isAuthenticated, me, navigate, returnTo]);
+  }, [authParam, getOrganizationById, isAuthenticated, me, navigate, pathTab, returnTo]);
 
   const setTab = (nextTab: string) => {
     const params = new URLSearchParams(searchParams);
-    params.set("auth", nextTab === "signup" ? "signup" : "signin");
-    setSearchParams(params, { replace: true });
+    const returnToParam = params.get("returnTo");
+    const nextPath = nextTab === "signup" ? "/site/create-account" : "/site/login";
+    if (returnToParam) {
+      navigate(`${nextPath}?returnTo=${encodeURIComponent(returnToParam)}`, { replace: true });
+      return;
+    }
+    navigate(nextPath, { replace: true });
   };
 
   const submitAuth = async (event: FormEvent<HTMLFormElement>) => {
@@ -189,11 +200,15 @@ function MainPageAuthPanel() {
 }
 
 export default function PublicHomePage() {
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { programs } = usePrograms();
   const publicApps = useMemo(() => getPublicAppCatalog(programs), [programs]);
   const featuredApps = publicApps.filter((app) => app.featured).slice(0, 3);
-  const showAuthPanel = Boolean(searchParams.get("auth"));
+  const showAuthPanel =
+    location.pathname === "/site/login" ||
+    location.pathname === "/site/create-account" ||
+    Boolean(searchParams.get("auth"));
 
   return (
     <SiteShell>

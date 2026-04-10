@@ -24,11 +24,11 @@ export function ProtectedRoute({ requirePlatformAdmin = false }: ProtectedRouteP
     const portalSlug = getOrganizationSlugFromHost(window.location.hostname);
     if (portalSlug) {
       const returnTo = encodeURIComponent(window.location.href);
-      window.location.assign(`https://${SUITE_DOMAIN}/?auth=signin&returnTo=${returnTo}`);
+      window.location.assign(`https://${SUITE_DOMAIN}/site/login?returnTo=${returnTo}`);
       return null;
     }
 
-    return <Navigate to="/?auth=signin" state={{ from: location }} replace />;
+    return <Navigate to="/site/login" state={{ from: location }} replace />;
   }
 
   if (requirePlatformAdmin && !isPlatformAdmin) {

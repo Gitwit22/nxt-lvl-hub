@@ -20,7 +20,6 @@ import ApplicationsPage from "@/pages/ApplicationsPage";
 import ProgramDetailPage from "@/pages/ProgramDetailPage";
 import AboutPage from "@/pages/AboutPage";
 import AdminPage from "@/pages/AdminPage";
-import LoginPage, { CreateAccountPage } from "./pages/LoginPage";
 import OrgLandingPage from "@/pages/OrgLandingPage";
 import OrgProgramsPage from "@/pages/OrgProgramsPage";
 import OrgUsersPage from "@/pages/OrgUsersPage";
@@ -74,10 +73,10 @@ const App = () => (
             <BrowserRouter>
               <Routes>
                 <Route path="/" element={<PublicHomePage />} />
+                <Route path="/site/login" element={<PublicHomePage />} />
+                <Route path="/site/create-account" element={<PublicHomePage />} />
                 <Route path="/apps" element={<PublicAppsPage />} />
                 <Route path="/apps/:appSlug" element={<PublicAppDetailPage />} />
-                <Route path="/site/login" element={<LoginPage />} />
-                <Route path="/site/create-account" element={<CreateAccountPage />} />
                 <Route path="/site/register" element={<Navigate to="/site/create-account" replace />} />
                 <Route path="/login" element={<Navigate to="/site/login" replace />} />
                 <Route path="/signin" element={<Navigate to="/site/login" replace />} />
