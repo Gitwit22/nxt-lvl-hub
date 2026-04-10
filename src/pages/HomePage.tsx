@@ -42,6 +42,15 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="rounded-xl border border-sky-400/25 bg-sky-500/10 p-5 md:p-6">
+        <p className="stamped-label text-[10px] text-sky-100/90">Account Next Step</p>
+        <h2 className="mt-2 font-mono text-base font-semibold text-sky-50">Create your organization portal and invite your team</h2>
+        <p className="mt-2 text-sm leading-relaxed text-sky-100/90">
+          From your suite dashboard, you can create an organization, launch your organization portal, and add users
+          so your team can access assigned programs.
+        </p>
+      </section>
+
       {/* Value Props — raised panels */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {[

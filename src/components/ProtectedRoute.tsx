@@ -24,7 +24,7 @@ export function ProtectedRoute({ requirePlatformAdmin = false }: ProtectedRouteP
     const portalSlug = getOrganizationSlugFromHost(window.location.hostname);
     if (portalSlug) {
       const returnTo = encodeURIComponent(window.location.href);
-      window.location.assign(`https://${SUITE_DOMAIN}/login?returnTo=${returnTo}`);
+      window.location.assign(`https://${SUITE_DOMAIN}/site/login?returnTo=${returnTo}`);
       return null;
     }
 

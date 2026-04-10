@@ -1,12 +1,15 @@
 /**
  * Suite authentication utilities for nxt-lvl-hub.
- * Handles redirects to centralized Suite login for platform_only auth mode.
+ * Handles redirects to centralized Suite login for child/platform_only apps.
+ * The Suite host itself should use local /site/login and /site/create-account routes.
  */
 
-const SUITE_URL = (import.meta.env.VITE_SUITE_URL as string | undefined) ?? "";
+const SUITE_EXTERNAL_URL = (import.meta.env.VITE_SUITE_URL as string | undefined) ?? "";
 const SUITE_LOGIN_PATH = (import.meta.env.VITE_SUITE_LOGIN_PATH as string | undefined) ?? "/site/login";
-const SUITE_SIGNUP_PATH = (import.meta.env.VITE_SUITE_SIGNUP_PATH as string | undefined) ?? "/site/register";
+const SUITE_SIGNUP_PATH = (import.meta.env.VITE_SUITE_SIGNUP_PATH as string | undefined) ?? "/site/create-account";
+const AUTH_APP_MODE = ((import.meta.env.VITE_AUTH_APP_MODE as string | undefined) ?? "auto").toLowerCase();
 const APP_LOGIN_ENTRY_PATH = "/site/login";
+const APP_SIGNUP_ENTRY_PATH = "/site/create-account";
 
 const SUITE_HOST_PRIMARY = "nltops.com";
 const SUITE_HOST_FALLBACK = "ntlops.com";
@@ -15,8 +18,30 @@ function isLocalhost(hostname: string): boolean {
   return hostname === "localhost" || hostname === "127.0.0.1";
 }
 
+export function isSuiteOwnedApp(): boolean {
+  if (AUTH_APP_MODE === "suite") return true;
+  if (AUTH_APP_MODE === "child" || AUTH_APP_MODE === "consumer") return false;
+
+  const host = window.location.hostname.toLowerCase();
+  if (
+    host === SUITE_HOST_PRIMARY ||
+    host.endsWith(`.${SUITE_HOST_PRIMARY}`) ||
+    host === SUITE_HOST_FALLBACK ||
+    host.endsWith(`.${SUITE_HOST_FALLBACK}`)
+  ) {
+    return true;
+  }
+
+  if (isLocalhost(host)) {
+    // In local development, default to suite mode unless a child explicitly points to a Suite URL.
+    return !SUITE_EXTERNAL_URL;
+  }
+
+  return false;
+}
+
 function resolveSuiteBaseUrl(): string {
-  if (SUITE_URL) return SUITE_URL;
+  if (SUITE_EXTERNAL_URL) return SUITE_EXTERNAL_URL;
 
   const host = window.location.hostname.toLowerCase();
 
@@ -61,12 +86,16 @@ function normalizeReturnPath(value?: string): string | undefined {
  * Suite login is required (for development/testing).
  */
 export function getSuiteLoginUrl(returnTo?: string): string {
+  if (isSuiteOwnedApp()) {
+    return returnTo ? `${APP_LOGIN_ENTRY_PATH}?returnTo=${encodeURIComponent(returnTo)}` : APP_LOGIN_ENTRY_PATH;
+  }
+
+  if (!SUITE_EXTERNAL_URL) {
+    return `${APP_LOGIN_ENTRY_PATH}?suiteAuthMisconfigured=1`;
+  }
+
   const normalizedReturnPath = normalizeReturnPath(returnTo);
   const suiteBaseUrl = resolveSuiteBaseUrl();
-
-  if (!SUITE_URL) {
-    console.warn("[Suite Auth] VITE_SUITE_URL missing. Using fallback base URL:", suiteBaseUrl);
-  }
 
   try {
     const url = new URL(SUITE_LOGIN_PATH, suiteBaseUrl);
@@ -112,12 +141,16 @@ export function getSuiteLoginUrl(returnTo?: string): string {
  * Builds the Suite signup/register URL.
  */
 export function getSuiteSignupUrl(returnTo?: string): string {
+  if (isSuiteOwnedApp()) {
+    return returnTo ? `${APP_SIGNUP_ENTRY_PATH}?returnTo=${encodeURIComponent(returnTo)}` : APP_SIGNUP_ENTRY_PATH;
+  }
+
+  if (!SUITE_EXTERNAL_URL) {
+    return `${APP_LOGIN_ENTRY_PATH}?suiteAuthMisconfigured=1`;
+  }
+
   const normalizedReturnPath = normalizeReturnPath(returnTo);
   const suiteBaseUrl = resolveSuiteBaseUrl();
-
-  if (!SUITE_URL) {
-    console.warn("[Suite Auth] VITE_SUITE_URL missing. Using fallback base URL:", suiteBaseUrl);
-  }
 
   try {
     const url = new URL(SUITE_SIGNUP_PATH, suiteBaseUrl);
@@ -149,7 +182,10 @@ export function getSuiteUrl(path: string = ""): string {
  * Check whether to use Suite auth based on environment.
  */
 export function isSuiteAuthConfigured(): boolean {
-  return Boolean(resolveSuiteBaseUrl());
+  if (isSuiteOwnedApp()) {
+    return true;
+  }
+  return Boolean(SUITE_EXTERNAL_URL);
 }
 
 /**
