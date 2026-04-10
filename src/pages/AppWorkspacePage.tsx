@@ -9,7 +9,7 @@ import { normalizeInternalLaunchUrl, slugifyAppName } from "@/lib/appCatalog";
 import { getAccessToken } from "@/lib/api";
 
 const SUITE_LAUNCH_HOST_HINTS = ["community-chronicle", "mission-hub"];
-const LANDING_FIRST_HOST_HINTS = ["community-chronicle"];
+const LANDING_FIRST_HOST_HINTS: string[] = [];
 
 export default function AppWorkspacePage() {
   const { appSlug = "" } = useParams();

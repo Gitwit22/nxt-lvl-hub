@@ -30,6 +30,7 @@ export default function OrgUsersPage() {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<OrgRole>(defaultInviteRole);
   const [selectedProgramIds, setSelectedProgramIds] = useState<string[]>([]);
+  const [initialPassword, setInitialPassword] = useState("");
 
   if (!org) {
     return <p className="text-sm text-muted-foreground">Unknown organization.</p>;
@@ -57,6 +58,11 @@ export default function OrgUsersPage() {
       return;
     }
 
+    if (initialPassword && initialPassword.length < 8) {
+      toast.error("Password must be at least 8 characters.");
+      return;
+    }
+
     try {
       await inviteUser({
         orgId: org.id,
@@ -64,14 +70,16 @@ export default function OrgUsersPage() {
         email: normalizedEmail,
         role,
         assignedProgramIds: selectedProgramIds,
+        initialPassword: initialPassword.trim() || undefined,
       });
 
-      toast.success("Invite created.");
+      toast.success("User added.");
 
       setName("");
       setEmail("");
       setRole(defaultInviteRole);
       setSelectedProgramIds([]);
+      setInitialPassword("");
     } catch (error) {
       toast.error(getErrorMessage(error));
     }
@@ -122,6 +130,20 @@ export default function OrgUsersPage() {
                 <SelectItem value="staff">Staff</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Initial Password <span className="text-muted-foreground/60 font-normal">(optional — 8+ chars)</span>
+            </label>
+            <Input
+              type="password"
+              value={initialPassword}
+              onChange={(event) => setInitialPassword(event.target.value)}
+              placeholder="Set a login password for this user"
+              autoComplete="new-password"
+              disabled={!canManage}
+            />
           </div>
 
           <div className="md:col-span-2 space-y-2">

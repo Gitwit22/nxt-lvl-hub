@@ -65,6 +65,7 @@ interface InviteUserInput {
   email: string;
   role: OrgRole;
   assignedProgramIds: string[];
+  initialPassword?: string;
 }
 
 interface CreateOrganizationInput {
@@ -360,7 +361,10 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
       assignedProgramIds: input.assignedProgramIds,
     };
 
-    const created = normalizeOrgUser(await createOrgUserRecord(input.orgId, toOrgUserMutationInput(nextUser)));
+    const payload = input.initialPassword
+      ? { ...toOrgUserMutationInput(nextUser), initialPassword: input.initialPassword }
+      : toOrgUserMutationInput(nextUser);
+    const created = normalizeOrgUser(await createOrgUserRecord(input.orgId, payload));
 
     setUsers((prev) => {
       const next = [...prev, created];

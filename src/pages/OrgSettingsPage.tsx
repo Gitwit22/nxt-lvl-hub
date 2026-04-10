@@ -4,6 +4,8 @@ import { canManageUsers, useOrgPortal } from "@/context/OrgPortalContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { changePasswordApi, getErrorMessage } from "@/lib/api";
+import { toast } from "sonner";
 
 export default function OrgSettingsPage() {
   const { orgSlug = "" } = useParams();
@@ -22,6 +24,11 @@ export default function OrgSettingsPage() {
   const [supportEmail, setSupportEmail] = useState(org?.supportEmail ?? "");
   const [primaryColor, setPrimaryColor] = useState(org?.branding.primaryColor ?? "");
   const [accentColor, setAccentColor] = useState(org?.branding.accentColor ?? "");
+
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   if (!org) {
     return <p className="text-sm text-muted-foreground">Unknown organization.</p>;
@@ -45,6 +52,31 @@ export default function OrgSettingsPage() {
         accentColor,
       },
     });
+  };
+
+  const handleChangePassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!currentPassword || !newPassword) return;
+    if (newPassword.length < 8) {
+      toast.error("New password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match.");
+      return;
+    }
+    setIsChangingPassword(true);
+    try {
+      await changePasswordApi(currentPassword, newPassword);
+      toast.success("Password updated successfully.");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   return (
@@ -108,6 +140,45 @@ export default function OrgSettingsPage() {
             ))}
           </ul>
         </article>
+      </section>
+
+      <section className="rounded-xl border border-border bg-card p-5">
+        <h2 className="text-base font-semibold">Change Password</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Update your login password for this Suite account.</p>
+        <form className="mt-4 grid gap-4 md:grid-cols-2" onSubmit={(e) => void handleChangePassword(e)}>
+          <div className="space-y-2">
+            <Label>Current Password</Label>
+            <Input
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>New Password <span className="text-muted-foreground/60 font-normal">(8+ chars)</span></Label>
+            <Input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              autoComplete="new-password"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Confirm New Password</Label>
+            <Input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              autoComplete="new-password"
+            />
+          </div>
+          <div className="md:col-span-2 flex justify-end">
+            <Button type="submit" disabled={isChangingPassword || !currentPassword || !newPassword}>
+              {isChangingPassword ? "Updating..." : "Update Password"}
+            </Button>
+          </div>
+        </form>
       </section>
 
       {!canManage && (
