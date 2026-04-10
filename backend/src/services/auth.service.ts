@@ -166,6 +166,37 @@ export class AuthService {
     return updated;
   }
 
+  async generateLaunchToken(
+    authUserId: string,
+    authEmail: string,
+    partition: string,
+    organizationId: string,
+    programDomain: string,
+  ): Promise<string> {
+    // Find the user's role in the requested org
+    const orgUsers = await orgUserRepository.listByAuthUserId(partition, authUserId);
+    const membership = orgUsers.find((u) => u.orgId === organizationId && u.active);
+
+    if (!membership) {
+      throw new AppError("User does not have active access to the requested organization.", 403);
+    }
+
+    // Map hub org roles to program roles
+    const roleMap: Record<string, "admin" | "reviewer" | "uploader"> = {
+      super_admin: "admin",
+      org_admin: "admin",
+      manager: "reviewer",
+      staff: "uploader",
+    };
+    const role = roleMap[membership.role] ?? "uploader";
+
+    return jwt.sign(
+      { type: "launch", userId: authUserId, email: authEmail, role, organizationId, programDomain },
+      env.platformLaunchSecret,
+      { expiresIn: "5m" },
+    );
+  }
+
   issueTokens(user: AuthUserRecord, partition: string): { tokens: AuthTokens; refreshToken: string } {
     const accessClaims: AuthTokenClaims = {
       sub: user.id,

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { bootstrapAdmin, login, logout, me, refresh, register } from "../controllers/auth.controller.js";
+import { bootstrapAdmin, launchToken, login, logout, me, refresh, register } from "../controllers/auth.controller.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { validateRequest } from "../middleware/validate-request.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -13,6 +13,7 @@ authRouter.post("/auth/register", authRateLimitMiddleware, validateRequest(regis
 authRouter.post("/auth/logout", asyncHandler(logout));
 authRouter.post("/auth/refresh", authRateLimitMiddleware, asyncHandler(refresh));
 authRouter.get("/auth/me", authMiddleware, asyncHandler(me));
+authRouter.post("/auth/launch-token", authMiddleware, asyncHandler(launchToken));
 authRouter.post(
 	"/auth/bootstrap-admin",
 	authMiddleware,

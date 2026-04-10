@@ -68,6 +68,28 @@ export async function me(request: Request, response: Response) {
   return sendSuccess(response, profile, "Profile retrieved.");
 }
 
+export async function launchToken(request: Request, response: Response) {
+  const authUser = request.authUser!;
+  const { organizationId, programDomain } = request.body as {
+    organizationId: string;
+    programDomain: string;
+  };
+
+  if (!organizationId || !programDomain) {
+    throw new AppError("organizationId and programDomain are required.", 400);
+  }
+
+  const token = await authService.generateLaunchToken(
+    authUser.id,
+    authUser.email,
+    authUser.partition,
+    organizationId,
+    programDomain,
+  );
+
+  return sendSuccess(response, { launchToken: token }, "Launch token issued.");
+}
+
 export async function bootstrapAdmin(request: Request, response: Response) {
   const authUser = request.authUser!;
   const { setupToken } = request.body as { setupToken: string };

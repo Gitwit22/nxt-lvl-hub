@@ -72,6 +72,7 @@ export interface SuiteProgram {
   logo: string;
   launchUrl: string;
   status: PortalProgramStatus;
+  programDomain?: string;
 }
 
 export interface Bundle {

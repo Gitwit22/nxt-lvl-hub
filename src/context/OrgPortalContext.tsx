@@ -177,6 +177,7 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
             : program.status === "coming-soon"
               ? "coming-soon"
               : "maintenance",
+      programDomain: program.slug || program.id.replace(/^program-/, ""),
     }));
   }, [catalogPrograms]);
 

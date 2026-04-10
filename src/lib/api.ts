@@ -151,6 +151,14 @@ export async function bootstrapAdminApi(setupToken: string): Promise<AuthTokenRe
   });
 }
 
+export async function generateLaunchTokenApi(organizationId: string, programDomain: string): Promise<string> {
+  const data = await apiRequest<{ launchToken: string }>("/api/auth/launch-token", {
+    method: "POST",
+    body: JSON.stringify({ organizationId, programDomain }),
+  });
+  return data.launchToken;
+}
+
 export function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
     return error.message;

@@ -29,7 +29,7 @@ export default function OrgProgramsPage() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {visiblePrograms.map((program) => (
-          <OrgProgramCard key={program.id} program={program} />
+          <OrgProgramCard key={program.id} program={program} orgId={org.id} />
         ))}
       </div>
 

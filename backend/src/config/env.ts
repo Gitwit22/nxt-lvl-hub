@@ -16,6 +16,7 @@ export const env = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "15m",
   jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
   platformSetupToken: process.env.PLATFORM_SETUP_TOKEN || "",
+  platformLaunchSecret: process.env.PLATFORM_LAUNCH_TOKEN_SECRET || "dev-platform-launch-secret",
 };
 
 export function getAllowedOrigins() {

@@ -1,10 +1,13 @@
+import { useState } from "react";
 import { SuiteProgram } from "@/types/orgPortal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowUpRight, Clock3, Wrench } from "lucide-react";
+import { ArrowUpRight, Clock3, Loader2, Wrench } from "lucide-react";
+import { generateLaunchTokenApi } from "@/lib/api";
 
 interface OrgProgramCardProps {
   program: SuiteProgram;
+  orgId: string;
 }
 
 const statusClass: Record<SuiteProgram["status"], string> = {
@@ -14,11 +17,33 @@ const statusClass: Record<SuiteProgram["status"], string> = {
   "coming-soon": "bg-muted text-muted-foreground border-border",
 };
 
-export function OrgProgramCard({ program }: OrgProgramCardProps) {
+export function OrgProgramCard({ program, orgId }: OrgProgramCardProps) {
   const isLaunchable = program.status === "active" || program.status === "beta";
-  const launchProgram = () => {
-    if (!isLaunchable) return;
-    if (program.launchUrl.startsWith("http")) {
+  const [isLaunching, setIsLaunching] = useState(false);
+
+  const launchProgram = async () => {
+    if (!isLaunchable || isLaunching) return;
+
+    const isExternal = program.launchUrl.startsWith("http");
+
+    // For external programs, get a launch token so the target app can auto-login
+    if (isExternal && program.programDomain) {
+      setIsLaunching(true);
+      try {
+        const launchToken = await generateLaunchTokenApi(orgId, program.programDomain);
+        const url = new URL(program.launchUrl);
+        url.searchParams.set("token", launchToken);
+        window.open(url.toString(), "_blank", "noopener,noreferrer");
+      } catch {
+        // Fall back to opening without a token (user will see login screen)
+        window.open(program.launchUrl, "_blank", "noopener,noreferrer");
+      } finally {
+        setIsLaunching(false);
+      }
+      return;
+    }
+
+    if (isExternal) {
       window.open(program.launchUrl, "_blank", "noopener,noreferrer");
       return;
     }
@@ -57,9 +82,8 @@ export function OrgProgramCard({ program }: OrgProgramCardProps) {
         )}
         {(program.status === "active" || program.status === "beta") && <span className="text-xs text-muted-foreground">Ready to launch</span>}
 
-        <Button size="sm" disabled={!isLaunchable} onClick={launchProgram}>
-          Launch
-          <ArrowUpRight className="h-4 w-4" />
+        <Button size="sm" disabled={!isLaunchable || isLaunching} onClick={() => void launchProgram()}>
+          {isLaunching ? <Loader2 className="h-4 w-4 animate-spin" /> : <><span>Launch</span><ArrowUpRight className="h-4 w-4" /></>}
         </Button>
       </div>
     </article>
