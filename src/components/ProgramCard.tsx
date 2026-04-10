@@ -60,13 +60,23 @@ export function ProgramCard({ program, compact }: ProgramCardProps) {
 
   const resolveExternalLaunchUrl = (url: string) => {
     const token = getAccessToken();
-    if (!token) return url;
+    if (!token) {
+      console.info("[suite-launch] generated url (no token)", {
+        app: program.slug || program.name,
+        rawUrl: url,
+      });
+      return url;
+    }
 
     try {
       const target = new URL(url, window.location.origin);
       const host = target.hostname.toLowerCase();
       const supportsSuiteLaunch = SUITE_LAUNCH_HOST_HINTS.some((hint) => host.includes(hint));
       if (!supportsSuiteLaunch) {
+        console.info("[suite-launch] generated url (external direct)", {
+          app: program.slug || program.name,
+          rawUrl: url,
+        });
         return url;
       }
 
@@ -74,8 +84,18 @@ export function ProgramCard({ program, compact }: ProgramCardProps) {
       if (!target.searchParams.get("token")) {
         target.searchParams.set("token", token);
       }
+      console.info("[suite-launch] generated url", {
+        app: program.slug || program.name,
+        destination: target.toString(),
+        hasToken: true,
+        openInNewTab: program.openInNewTab,
+      });
       return target.toString();
     } catch {
+      console.warn("[suite-launch] failed to build launch url, using raw url", {
+        app: program.slug || program.name,
+        rawUrl: url,
+      });
       return url;
     }
   };
