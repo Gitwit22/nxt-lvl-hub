@@ -35,9 +35,10 @@ export function AppSidebar() {
   ];
 
   const handleLogout = async () => {
+    navigate("/", { replace: true });
+
     try {
       await logout();
-      navigate("/", { replace: true });
       toast.success("Logged out successfully.");
     } catch (error) {
       toast.error(getErrorMessage(error));
