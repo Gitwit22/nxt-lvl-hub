@@ -20,7 +20,7 @@ import ApplicationsPage from "@/pages/ApplicationsPage";
 import ProgramDetailPage from "@/pages/ProgramDetailPage";
 import AboutPage from "@/pages/AboutPage";
 import AdminPage from "@/pages/AdminPage";
-import LoginPage, { CreateAccountPage } from "@/pages/LoginPage";
+import LoginPage, { CreateAccountPage } from "./pages/LoginPage";
 import OrgLandingPage from "@/pages/OrgLandingPage";
 import OrgProgramsPage from "@/pages/OrgProgramsPage";
 import OrgUsersPage from "@/pages/OrgUsersPage";
