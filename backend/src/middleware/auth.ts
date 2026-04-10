@@ -33,3 +33,26 @@ export function platformAdminMiddleware(request: Request, _response: Response, n
   }
   next();
 }
+
+export function optionalAuthMiddleware(request: Request, _response: Response, next: NextFunction) {
+  const authorization = request.headers.authorization;
+
+  if (!authorization?.startsWith("Bearer ")) {
+    return next();
+  }
+
+  const token = authorization.slice(7);
+
+  try {
+    const claims = jwt.verify(token, env.jwtSecret) as AuthTokenClaims & { iat: number; exp: number };
+    request.authUser = {
+      id: claims.sub,
+      email: claims.email,
+      partition: claims.partition,
+      isPlatformAdmin: claims.isPlatformAdmin,
+    };
+    return next();
+  } catch {
+    return next();
+  }
+}

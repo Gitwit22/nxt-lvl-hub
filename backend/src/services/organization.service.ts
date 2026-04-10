@@ -4,6 +4,7 @@ import { organizationInputSchema } from "../validators/organization.validators.j
 import { organizationRepository } from "../database/repositories.js";
 import { uniqueSlug } from "../utils/slug.js";
 import { AppError } from "../utils/app-error.js";
+import { isReservedPortalSubdomain } from "../utils/portal-host.js";
 
 function createDefaultSettings(name: string) {
   return {
@@ -70,9 +71,15 @@ export class OrganizationService {
     const data = organizationInputSchema.parse(payload);
     const organizations = (await organizationRepository.list(partitionKey)).filter((organization) => !organization.deletedAt);
     const now = new Date().toISOString();
+    const generatedSlug = data.slug || uniqueSlug(data.name, organizations.map((entry) => entry.slug));
+    const portalSlug = generatedSlug.trim().toLowerCase();
+
+    if (isReservedPortalSubdomain(portalSlug) || isReservedPortalSubdomain(data.subdomain)) {
+      throw new AppError("That subdomain is reserved and cannot be used.", 409);
+    }
 
     const duplicateSubdomain = organizations.find(
-      (o) => o.subdomain.toLowerCase() === data.subdomain.toLowerCase(),
+      (o) => o.subdomain.toLowerCase() === portalSlug,
     );
     if (duplicateSubdomain) {
       throw new AppError("That subdomain is already in use.", 409);
@@ -80,12 +87,13 @@ export class OrganizationService {
 
     const organization: OrganizationRecord = {
       id: data.id || crypto.randomUUID(),
-      slug: data.slug || uniqueSlug(data.name, organizations.map((entry) => entry.slug)),
+      slug: generatedSlug,
       settings: createDefaultSettings(data.name),
       createdAt: now,
       updatedAt: now,
       deletedAt: null,
       ...data,
+      subdomain: portalSlug,
       contactEmail: data.contactEmail,
       supportEmail: data.supportEmail,
       supportContactName: data.supportContactName,
@@ -93,10 +101,17 @@ export class OrganizationService {
       industryType: data.industryType,
       notes: data.notes,
       logoUrl: data.logoUrl || null,
+      faviconUrl: data.faviconUrl || null,
       bannerUrl: data.bannerUrl || null,
+      backgroundUrl: data.backgroundUrl || null,
       trialEndsAt: data.trialEndsAt || null,
       lastActivityAt: data.lastActivityAt || now,
       ownerUserId: data.ownerUserId || null,
+      billingPlan: data.billingPlan || null,
+      customDomain: data.customDomain || null,
+      enabledModules: data.enabledModules || [],
+      supportPhone: data.supportPhone || "",
+      portalTitle: data.portalTitle || "",
     };
 
     return organizationRepository.create(partitionKey, organization);
@@ -108,9 +123,14 @@ export class OrganizationService {
       ...current,
       ...payload,
       logoUrl: payload.logoUrl === undefined ? current.logoUrl : payload.logoUrl,
+      faviconUrl: payload.faviconUrl === undefined ? current.faviconUrl : payload.faviconUrl,
       bannerUrl: payload.bannerUrl === undefined ? current.bannerUrl : payload.bannerUrl,
+      backgroundUrl: payload.backgroundUrl === undefined ? current.backgroundUrl : payload.backgroundUrl,
       trialEndsAt: payload.trialEndsAt === undefined ? current.trialEndsAt : payload.trialEndsAt,
       ownerUserId: payload.ownerUserId === undefined ? current.ownerUserId : payload.ownerUserId,
+      billingPlan: payload.billingPlan === undefined ? current.billingPlan : payload.billingPlan,
+      customDomain: payload.customDomain === undefined ? current.customDomain : payload.customDomain,
+      enabledModules: payload.enabledModules === undefined ? current.enabledModules : payload.enabledModules,
     };
 
     const validated = organizationInputSchema.parse({
@@ -123,6 +143,7 @@ export class OrganizationService {
       logo: merged.logo,
       logoUrl: merged.logoUrl,
       bannerUrl: merged.bannerUrl,
+      backgroundUrl: merged.backgroundUrl,
       welcomeMessage: merged.welcomeMessage,
       supportEmail: merged.supportEmail,
       supportContactName: merged.supportContactName,
@@ -135,10 +156,16 @@ export class OrganizationService {
       lastActivityAt: merged.lastActivityAt,
       branding: merged.branding,
       assignedProgramIds: merged.assignedProgramIds,
+      enabledModules: merged.enabledModules || [],
       assignedBundleIds: merged.assignedBundleIds,
       announcements: merged.announcements,
       ownerEmail: merged.ownerEmail,
       ownerUserId: merged.ownerUserId,
+      customDomain: merged.customDomain,
+      billingPlan: merged.billingPlan,
+      supportPhone: merged.supportPhone || "",
+      portalTitle: merged.portalTitle || "",
+      faviconUrl: merged.faviconUrl,
       status: merged.status,
       tags: merged.tags,
     });
@@ -155,13 +182,22 @@ export class OrganizationService {
       throw new AppError("That subdomain is already in use.", 409);
     }
 
+    if (isReservedPortalSubdomain(validated.slug) || isReservedPortalSubdomain(validated.subdomain)) {
+      throw new AppError("That subdomain is reserved and cannot be used.", 409);
+    }
+
     const updated = await organizationRepository.update(partitionKey, id, (organization) => ({
       ...organization,
       ...validated,
       logoUrl: validated.logoUrl || null,
+      faviconUrl: validated.faviconUrl || null,
       bannerUrl: validated.bannerUrl || null,
+      backgroundUrl: validated.backgroundUrl || null,
       trialEndsAt: validated.trialEndsAt || null,
       ownerUserId: validated.ownerUserId || null,
+      billingPlan: validated.billingPlan || null,
+      customDomain: validated.customDomain || null,
+      enabledModules: validated.enabledModules || [],
       slug,
       settings,
       updatedAt: new Date().toISOString(),

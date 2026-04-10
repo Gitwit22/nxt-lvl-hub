@@ -5,7 +5,7 @@ import { OrgProgramCard } from "@/components/OrgProgramCard";
 
 export default function OrgProgramsPage() {
   const { orgSlug = "" } = useParams();
-  const { getOrganizationBySlug, getUsersForOrganization, activeUserByOrg, getProgramsForUser } = useOrgPortal();
+  const { getOrganizationBySlug, getUsersForOrganization, getOrgCurrentUser, getProgramsForUser } = useOrgPortal();
 
   const org = getOrganizationBySlug(orgSlug);
   const users = useMemo(() => (org ? getUsersForOrganization(org.id) : []), [getUsersForOrganization, org]);
@@ -14,7 +14,7 @@ export default function OrgProgramsPage() {
     return <p className="text-sm text-muted-foreground">Unknown organization.</p>;
   }
 
-  const currentUser = users.find((user) => user.id === activeUserByOrg[org.id]) ?? users[0];
+  const currentUser = getOrgCurrentUser(org.id) ?? users[0];
   const visiblePrograms = currentUser ? getProgramsForUser(org, currentUser.id) : [];
 
   return (

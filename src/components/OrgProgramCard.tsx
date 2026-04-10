@@ -29,9 +29,17 @@ export function OrgProgramCard({ program }: OrgProgramCardProps) {
     <article className="group rounded-xl border border-border bg-card p-5 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-secondary text-sm font-semibold text-foreground">
-            {program.logo}
-          </div>
+          {program.logoUrl ? (
+            <img
+              src={program.logoUrl}
+              alt={program.name}
+              className="h-11 w-11 rounded-xl border border-border bg-secondary object-cover"
+            />
+          ) : (
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-secondary text-sm font-semibold text-foreground">
+              {program.logo}
+            </div>
+          )}
           <div>
             <h3 className="text-base font-semibold text-foreground">{program.name}</h3>
             <p className="text-xs text-muted-foreground">Program Workspace</p>

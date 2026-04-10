@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { suitePrograms } from "@/data/orgPortalSeed";
+import { programCatalogSeed } from "@/data/programCatalogSeed";
 import {
   createProgram as createProgramRecord,
   deleteProgram as deleteProgramRecord,
@@ -31,41 +31,8 @@ function savePrograms(programs: Program[]) {
 function getDefaultPrograms(): Program[] {
   const now = new Date().toISOString();
 
-  return suitePrograms.map((program, index) => ({
-    id: program.id,
-    slug: program.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
-    name: program.name,
-    shortDescription: program.description,
-    longDescription: program.description,
-    category: "Operations",
-    tags: [],
-    status:
-      program.status === "active"
-        ? "live"
-        : program.status === "beta"
-          ? "beta"
-          : program.status === "maintenance"
-            ? "internal"
-            : "coming-soon",
-    type: program.launchUrl.startsWith("http") ? "external" : "internal",
-    origin: "suite-native",
-    internalRoute: program.launchUrl.startsWith("http") ? undefined : program.launchUrl,
-    externalUrl: program.launchUrl.startsWith("http") ? program.launchUrl : undefined,
-    openInNewTab: program.launchUrl.startsWith("http"),
-    logoUrl: "",
-    accentColor: "",
-    cardBackgroundColor: "",
-    cardBackgroundOpacity: 0,
-    cardGlowColor: "",
-    cardGlowOpacity: 0,
-    cardHoverTintOpacity: 0,
-    isFeatured: index < 3,
-    isPublic: true,
-    requiresLogin: false,
-    requiresApproval: false,
-    launchLabel: program.status === "coming-soon" ? "Coming Soon" : "Launch",
-    displayOrder: index + 1,
-    notes: "",
+  return programCatalogSeed.map((program) => ({
+    ...program,
     createdAt: now,
     updatedAt: now,
   }));

@@ -3,8 +3,10 @@ import { organizations as seedOrganizations, suiteBundles, users as seedUsers } 
 import {
   createOrgUser as createOrgUserRecord,
   createOrganization as createOrganizationRecord,
+  getPortalBootstrap,
   listOrgUsers,
   listOrganizations,
+  normalizeProgram,
   normalizeOrgUser,
   normalizeOrganization,
   toOrgUserMutationInput,
@@ -15,6 +17,7 @@ import {
 import { usePrograms } from "@/context/ProgramContext";
 import { useAuth } from "@/context/AuthContext";
 import { Bundle, OrgRole, Organization, PortalUser, SuiteProgram } from "@/types/orgPortal";
+import { getOrganizationSlugFromHost } from "@/lib/orgRoutes";
 
 const ORG_STORAGE_KEY = "nxtlvl.organizations";
 const USER_STORAGE_KEY = "nxtlvl.orgUsers";
@@ -68,15 +71,25 @@ interface CreateOrganizationInput {
   industryType?: string;
   notes?: string;
   logoUrl?: string;
+  faviconUrl?: string;
   bannerUrl?: string;
   primaryColor: string;
+  secondaryColor?: string;
   accentColor: string;
+  backgroundColor?: string;
+  fontFamily?: string;
   assignedProgramIds: string[];
   assignedBundleIds: string[];
+  enabledModules?: string[];
   planType: Organization["planType"];
   status: Organization["status"];
   seatLimit: number;
   trialEndsAt?: string;
+  supportPhone?: string;
+  billingPlan?: string;
+  customDomain?: string;
+  portalTitle?: string;
+  welcomeMessage?: string;
 }
 
 interface OrgPortalContextType {
@@ -178,6 +191,7 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
         .slice(0, 2)
         .map((segment) => segment[0]?.toUpperCase() ?? "")
         .join(""),
+      logoUrl: program.logoUrl,
       launchUrl: program.type === "external" ? program.externalUrl || `/applications/${program.id}` : program.internalRoute || `/applications/${program.id}`,
       status:
         program.status === "live"
@@ -194,6 +208,60 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
 
     try {
+      const portalSlug = typeof window !== "undefined" ? getOrganizationSlugFromHost(window.location.hostname) : null;
+
+      if (portalSlug) {
+        const bootstrap = await getPortalBootstrap();
+        const organization = normalizeOrganization(bootstrap.organization);
+        const normalizedPrograms = bootstrap.enabledPrograms.map(normalizeProgram).map((program) => ({
+          id: program.id,
+          name: program.name,
+          description: program.shortDescription,
+          logo: program.name
+            .split(/\s+/)
+            .slice(0, 2)
+            .map((segment) => segment[0]?.toUpperCase() ?? "")
+            .join(""),
+          logoUrl: program.logoUrl,
+          launchUrl: program.type === "external" ? program.externalUrl || `/applications/${program.id}` : program.internalRoute || `/applications/${program.id}`,
+          status:
+            program.status === "live"
+              ? "active"
+              : program.status === "beta"
+                ? "beta"
+                : program.status === "coming-soon"
+                  ? "coming-soon"
+                  : "maintenance",
+        }));
+
+        const portalUsers: PortalUser[] = bootstrap.membership
+          ? [
+              {
+                id: bootstrap.membership.userId,
+                orgId: bootstrap.membership.orgId,
+                name: bootstrap.membership.name,
+                email: bootstrap.membership.email,
+                role: bootstrap.membership.role as OrgRole,
+                active: bootstrap.membership.active,
+                assignedProgramIds: normalizedPrograms.map((program) => program.id),
+                authUserId,
+              },
+            ]
+          : [];
+
+        setOrganizations([organization]);
+        setUsers(portalUsers);
+        saveOrganizations([organization]);
+        saveUsers(portalUsers);
+
+        if (normalizedPrograms.length > 0) {
+          // Keep suite catalog as source of truth, but allow portal bootstrap to pre-warm user assignments.
+          void normalizedPrograms;
+        }
+
+        return;
+      }
+
       const records = await listOrganizations();
 
       if (records.length === 0) {
@@ -259,6 +327,10 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
     if (!user || !user.active) return [];
 
     const orgPrograms = getOrganizationPrograms(org);
+    if (canManageUsers(user.role)) {
+      return orgPrograms;
+    }
+
     const userProgramSet = new Set(user.assignedProgramIds);
     return orgPrograms.filter((program) => userProgramSet.has(program.id));
   };
@@ -304,23 +376,38 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
       supportEmail: input.supportEmail.trim().toLowerCase(),
       logo: initials || "OR",
       logoUrl: input.logoUrl || "",
+      faviconUrl: input.faviconUrl || "",
       bannerUrl: input.bannerUrl || "",
-      welcomeMessage: `Welcome to ${input.name.trim()}. Your organization portal is ready.`,
+      backgroundUrl: "",
+      portalTitle: input.portalTitle?.trim() || "",
+      welcomeMessage: input.welcomeMessage?.trim() || `Welcome to ${input.name.trim()}. Your organization portal is ready.`,
       supportContactName: `${input.name.trim()} Support`,
+      supportPhone: input.supportPhone?.trim() || "",
       phoneNumber: input.phoneNumber?.trim() || "",
       industryType: input.industryType?.trim() || "",
       notes: input.notes?.trim() || "",
       planType: input.planType,
+      billingPlan: input.billingPlan?.trim() || null,
       seatLimit: input.seatLimit,
       status: input.status,
       trialEndsAt: input.trialEndsAt || "",
+      customDomain: input.customDomain?.trim() || null,
       createdAt: now,
       lastActivityAt: now,
       branding: {
         primaryColor: input.primaryColor,
+        secondaryColor: input.secondaryColor || "",
         accentColor: input.accentColor,
+        backgroundColor: input.backgroundColor || "",
+        backgroundStartColor: input.primaryColor,
+        backgroundEndColor: input.accentColor,
+        bannerStartColor: input.primaryColor,
+        bannerEndColor: input.accentColor,
+        gradientAngle: 135,
+        fontFamily: input.fontFamily || "inter",
       },
       assignedProgramIds: input.assignedProgramIds,
+      enabledModules: input.enabledModules || [],
       assignedBundleIds: input.assignedBundleIds,
       announcements: [
         {

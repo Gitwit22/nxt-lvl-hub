@@ -71,6 +71,7 @@ export class ProgramService {
       deletedAt: null,
       ...data,
       organizationId: data.organizationId || null,
+      secondaryCategory: data.secondaryCategory || null,
       logoUrl: data.logoUrl || null,
       screenshotUrl: data.screenshotUrl || null,
       internalRoute: data.internalRoute || null,
@@ -81,6 +82,7 @@ export class ProgramService {
       cardGlowColor: data.cardGlowColor || null,
       cardGlowOpacity: data.cardGlowOpacity ?? null,
       cardHoverTintOpacity: data.cardHoverTintOpacity ?? null,
+      adminOnly: data.adminOnly,
     };
 
     return programRepository.create(partitionKey, program);
@@ -102,6 +104,7 @@ export class ProgramService {
       shortDescription: merged.shortDescription,
       longDescription: merged.longDescription,
       category: merged.category,
+      secondaryCategory: merged.secondaryCategory,
       status: merged.status,
       tags: merged.tags,
       logoUrl: merged.logoUrl,
@@ -116,6 +119,7 @@ export class ProgramService {
       cardGlowColor: merged.cardGlowColor,
       cardGlowOpacity: merged.cardGlowOpacity,
       cardHoverTintOpacity: merged.cardHoverTintOpacity,
+      adminOnly: merged.adminOnly,
       isFeatured: merged.isFeatured,
       isPublic: merged.isPublic,
       requiresLogin: merged.requiresLogin,
@@ -134,6 +138,7 @@ export class ProgramService {
       ...program,
       ...validated,
       organizationId: validated.organizationId || null,
+      secondaryCategory: validated.secondaryCategory || null,
       logoUrl: validated.logoUrl || null,
       screenshotUrl: validated.screenshotUrl || null,
       internalRoute: validated.internalRoute || null,
@@ -144,6 +149,7 @@ export class ProgramService {
       cardGlowColor: validated.cardGlowColor || null,
       cardGlowOpacity: validated.cardGlowOpacity ?? null,
       cardHoverTintOpacity: validated.cardHoverTintOpacity ?? null,
+      adminOnly: validated.adminOnly,
       slug,
       updatedAt: new Date().toISOString(),
     }));

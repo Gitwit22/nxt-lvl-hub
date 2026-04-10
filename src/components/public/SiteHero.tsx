@@ -1,0 +1,67 @@
+import { ArrowRight, LayoutGrid, Sparkles } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/AuthContext";
+
+function getDashboardPath(isPlatformAdmin: boolean) {
+  return isPlatformAdmin ? "/admin/organizations" : "/home";
+}
+
+export function SiteHero() {
+  const { isAuthenticated, isPlatformAdmin } = useAuth();
+  const dashboardPath = getDashboardPath(isPlatformAdmin);
+
+  return (
+    <section className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+      <div className="space-y-6">
+        <div className="inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-300/10 px-3 py-1 text-xs uppercase tracking-[0.2em] text-sky-100/85">
+          <Sparkles className="h-3.5 w-3.5" /> Suite access layer
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-[1.5rem] border border-white/15 bg-slate-950 text-lg font-semibold text-white shadow-[0_18px_48px_rgba(15,23,42,0.4)]">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.55),_transparent_55%),linear-gradient(160deg,_rgba(37,99,235,1),_rgba(15,23,42,0.94))]" />
+              <span className="relative z-10 tracking-[0.26em]">NL</span>
+            </div>
+            <div>
+              <p className="text-sm uppercase tracking-[0.28em] text-sky-100/70">Suite Platform</p>
+              <h1 className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">Nxt Lvl Suites</h1>
+            </div>
+          </div>
+
+          <p className="max-w-2xl text-lg leading-8 text-slate-300 sm:text-xl">
+            The public hub for Nxt Lvl apps. Find tools fast and launch from one place.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <Button asChild size="lg">
+            <Link to="/apps">
+              <LayoutGrid className="h-4 w-4" /> View Apps
+            </Link>
+          </Button>
+          <Button asChild size="lg" variant="outline">
+            <Link to={isAuthenticated ? dashboardPath : "/login"}>
+              {isAuthenticated ? "Dashboard" : "Sign In"} <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+      </div>
+
+      <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-[0_18px_60px_rgba(8,15,30,0.4)] backdrop-blur-xl">
+        <div className="absolute -right-20 top-0 h-52 w-52 rounded-full bg-cyan-400/20 blur-3xl" />
+        <div className="absolute -left-10 bottom-0 h-44 w-44 rounded-full bg-blue-500/20 blur-3xl" />
+
+        <div className="relative space-y-3">
+          <img
+            src="/3_banner.png"
+            alt="Nxt Lvl Suites banner"
+            className="w-full rounded-2xl border border-white/10 object-cover"
+          />
+          <p className="text-xs uppercase tracking-[0.22em] text-sky-100/70">Public app directory and launch hub</p>
+        </div>
+      </div>
+    </section>
+  );
+}

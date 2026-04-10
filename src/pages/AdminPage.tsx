@@ -24,7 +24,7 @@ import { Check, Plus, Pencil, Trash2, Upload, Search, Eye, PauseCircle, PlayCirc
 import { toast } from "sonner";
 
 const PAGE_SIZE = 8;
-const ROOT_DOMAIN = "nxtlvlsuite.com";
+const ROOT_DOMAIN = "ntlops.com";
 
 type AdminSection = "organizations" | "programs";
 type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
@@ -66,8 +66,8 @@ const DEFAULT_WIZARD_STATE: WizardState = {
   assignedProgramIds: [],
   logoUrl: "",
   bannerUrl: "",
-  primaryColor: "217 80% 56%",
-  accentColor: "191 85% 47%",
+  primaryColor: "#2563eb",
+  accentColor: "#0ea5e9",
   planType: "starter",
   trialDays: 30,
   status: "trial",
@@ -79,6 +79,7 @@ const emptyProgramForm = (): Omit<Program, "id" | "createdAt" | "updatedAt"> => 
   shortDescription: "",
   longDescription: "",
   category: "Operations",
+  secondaryCategory: "",
   tags: [],
   status: "coming-soon" as ProgramStatus,
   type: "internal" as ProgramType,
@@ -100,6 +101,7 @@ const emptyProgramForm = (): Omit<Program, "id" | "createdAt" | "updatedAt"> => 
   cardGlowColor: "#4f46e5",
   cardGlowOpacity: 22,
   cardHoverTintOpacity: 10,
+  adminOnly: false,
 });
 
 function resolveProgramPreviewColor(color?: string) {
@@ -139,6 +141,21 @@ function parseLegacyHslToHex(color?: string, fallback = "#4f46e5") {
   const toHex = (value: number) => Math.round((value + lightnessAdjustment) * 255).toString(16).padStart(2, "0");
 
   return `#${toHex(redBase)}${toHex(greenBase)}${toHex(blueBase)}`;
+}
+
+function toCssColor(color?: string, fallback = "#4f46e5") {
+  if (!color) return fallback;
+  if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl") || color.startsWith("var(")) {
+    return color;
+  }
+  if (/^(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%$/.test(color)) {
+    return `hsl(${color})`;
+  }
+  return fallback;
+}
+
+function gradientCss(start: string, end: string, angle = 135) {
+  return `linear-gradient(${Math.max(0, Math.min(angle, 360))}deg, ${toCssColor(start, "#0f172a")}, ${toCssColor(end, "#1d4ed8")})`;
 }
 
 function hexToRgbaPreview(hex: string, opacityPercent: number) {
@@ -346,10 +363,15 @@ function ProgramManagerTab() {
             <ProgramLogo name={program.name} logoUrl={program.logoUrl} accentColor={program.accentColor} className="w-8 h-8" textClassName="text-xs" />
             <div className="flex-1 min-w-0">
               <p className="font-mono font-medium text-foreground text-sm truncate">{program.name}</p>
-              <p className="text-[10px] stamped-label">{program.category} · Order: {program.displayOrder}</p>
+              <p className="text-[10px] stamped-label">
+                {program.category}
+                {program.secondaryCategory ? ` / ${program.secondaryCategory}` : ""}
+                {` · Order: ${program.displayOrder}`}
+              </p>
             </div>
             <StatusLED status={program.status} className="hidden sm:flex" />
             {!program.isPublic && <span className="stamped-label text-[8px] hidden sm:inline">Private</span>}
+            {program.adminOnly && <span className="stamped-label text-[8px] hidden sm:inline">Admin Only</span>}
             <div className="flex gap-1 shrink-0">
               <button onClick={() => openEdit(program)} className="metal-button rounded p-1.5 hover:text-primary transition-colors">
                 <Pencil className="h-3.5 w-3.5" />
@@ -368,7 +390,7 @@ function ProgramManagerTab() {
             <DialogTitle className="font-mono uppercase tracking-wider text-sm">{editingId ? "Edit Program" : "Add Program"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="font-mono text-xs uppercase tracking-wider">Program Name *</Label>
                 <Input value={form.name} onChange={(event) => set("name", event.target.value)} className="bg-secondary font-mono text-xs" />
@@ -378,6 +400,19 @@ function ProgramManagerTab() {
                 <Select value={form.category} onValueChange={(value) => set("category", value)}>
                   <SelectTrigger className="bg-secondary font-mono text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>{CATEGORIES.map((category) => <SelectItem key={category} value={category}>{category}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-mono text-xs uppercase tracking-wider">Secondary Category (Optional)</Label>
+                <Select
+                  value={form.secondaryCategory || "none"}
+                  onValueChange={(value) => set("secondaryCategory", value === "none" ? "" : value)}
+                >
+                  <SelectTrigger className="bg-secondary font-mono text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {CATEGORIES.map((category) => <SelectItem key={category} value={category}>{category}</SelectItem>)}
+                  </SelectContent>
                 </Select>
               </div>
             </div>
@@ -618,6 +653,7 @@ function ProgramManagerTab() {
               {([
                 ["isFeatured", "Featured"],
                 ["isPublic", "Public"],
+                ["adminOnly", "Admin Only"],
                 ["requiresLogin", "Requires Login"],
                 ["requiresApproval", "Requires Approval"],
                 ["openInNewTab", "New Tab"],
@@ -978,21 +1014,34 @@ function OrganizationsTab() {
           </div>
 
           <div className="space-y-2">
-            <Label>Primary Color (HSL)</Label>
-            <Input value={wizardState.primaryColor} onChange={(event) => updateWizard("primaryColor", event.target.value)} placeholder="217 80% 56%" />
+            <Label>Primary Color</Label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={parseLegacyHslToHex(wizardState.primaryColor, "#2563eb")}
+                onChange={(event) => updateWizard("primaryColor", event.target.value)}
+                className="h-10 w-14 rounded border border-input bg-secondary p-1"
+              />
+              <Input value={wizardState.primaryColor} onChange={(event) => updateWizard("primaryColor", event.target.value)} placeholder="#2563eb" />
+            </div>
           </div>
 
           <div className="space-y-2">
-            <Label>Accent Color (HSL)</Label>
-            <Input value={wizardState.accentColor} onChange={(event) => updateWizard("accentColor", event.target.value)} placeholder="191 85% 47%" />
+            <Label>Accent Color</Label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={parseLegacyHslToHex(wizardState.accentColor, "#0ea5e9")}
+                onChange={(event) => updateWizard("accentColor", event.target.value)}
+                className="h-10 w-14 rounded border border-input bg-secondary p-1"
+              />
+              <Input value={wizardState.accentColor} onChange={(event) => updateWizard("accentColor", event.target.value)} placeholder="#0ea5e9" />
+            </div>
           </div>
 
           <div className="md:col-span-2 rounded-xl border border-border p-4">
             <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Branding Preview</p>
-            <div
-              className="rounded-lg px-4 py-6"
-              style={{ background: `linear-gradient(120deg, hsl(${wizardState.primaryColor}), hsl(${wizardState.accentColor}))` }}
-            >
+            <div className="rounded-lg px-4 py-6" style={{ background: gradientCss(wizardState.primaryColor, wizardState.accentColor, 120) }}>
               <p className="text-white text-sm font-semibold">{wizardState.name || "Organization Portal"}</p>
               <p className="text-white/80 text-xs">Branded portal header preview</p>
             </div>
@@ -1215,7 +1264,7 @@ function OrganizationsTab() {
         <section className="rounded-xl border border-border bg-card p-5 space-y-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="h-11 w-11 rounded-lg flex items-center justify-center text-white font-semibold" style={{ background: `linear-gradient(130deg, hsl(${selectedOrg.branding.primaryColor}), hsl(${selectedOrg.branding.accentColor}))` }}>
+              <div className="h-11 w-11 rounded-lg flex items-center justify-center text-white font-semibold" style={{ background: gradientCss(selectedOrg.branding.primaryColor, selectedOrg.branding.accentColor, selectedOrg.branding.gradientAngle ?? 130) }}>
                 {selectedOrg.logo}
               </div>
               <div>
@@ -1422,8 +1471,62 @@ function ProgramAssignmentsPanel({
 function BrandingPanel({ org, onSave }: { org: Organization; onSave: (updates: Partial<Organization>) => Promise<void> }) {
   const [logoUrl, setLogoUrl] = useState(org.logoUrl || "");
   const [bannerUrl, setBannerUrl] = useState(org.bannerUrl || "");
-  const [primaryColor, setPrimaryColor] = useState(org.branding.primaryColor);
-  const [accentColor, setAccentColor] = useState(org.branding.accentColor);
+  const [backgroundUrl, setBackgroundUrl] = useState(org.backgroundUrl || "");
+  const [primaryColor, setPrimaryColor] = useState(parseLegacyHslToHex(org.branding.primaryColor, "#2563eb"));
+  const [accentColor, setAccentColor] = useState(parseLegacyHslToHex(org.branding.accentColor, "#0ea5e9"));
+  const [backgroundStartColor, setBackgroundStartColor] = useState(parseLegacyHslToHex(org.branding.backgroundStartColor, "#0f172a"));
+  const [backgroundEndColor, setBackgroundEndColor] = useState(parseLegacyHslToHex(org.branding.backgroundEndColor, "#1d4ed8"));
+  const [bannerStartColor, setBannerStartColor] = useState(parseLegacyHslToHex(org.branding.bannerStartColor, "#1e293b"));
+  const [bannerEndColor, setBannerEndColor] = useState(parseLegacyHslToHex(org.branding.bannerEndColor, "#0ea5e9"));
+  const [gradientAngle, setGradientAngle] = useState(org.branding.gradientAngle ?? 135);
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+  const [isUploadingBackground, setIsUploadingBackground] = useState(false);
+
+  const normalizeUploadedAssetUrl = (assetUrl: string) => {
+    if (/^https?:\/\//i.test(assetUrl)) {
+      return assetUrl;
+    }
+
+    const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? window.location.origin;
+    try {
+      return new URL(assetUrl, apiBaseUrl).toString();
+    } catch {
+      return assetUrl;
+    }
+  };
+
+  const handleAssetUpload = async (file: File | undefined, target: "banner" | "background") => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file");
+      return;
+    }
+
+    if (target === "banner") {
+      setIsUploadingBanner(true);
+    } else {
+      setIsUploadingBackground(true);
+    }
+
+    try {
+      const upload = await uploadLogoFile(file);
+      const resolved = normalizeUploadedAssetUrl(upload.logoUrl);
+      if (target === "banner") {
+        setBannerUrl(resolved);
+      } else {
+        setBackgroundUrl(resolved);
+      }
+      toast.success(`${target === "banner" ? "Banner" : "Background"} image uploaded`);
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      if (target === "banner") {
+        setIsUploadingBanner(false);
+      } else {
+        setIsUploadingBackground(false);
+      }
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -1434,26 +1537,130 @@ function BrandingPanel({ org, onSave }: { org: Organization; onSave: (updates: P
         </div>
 
         <div className="space-y-2 md:col-span-2">
-          <Label>Banner URL</Label>
-          <Input value={bannerUrl} onChange={(event) => setBannerUrl(event.target.value)} />
+          <Label>Banner Image</Label>
+          <div className="flex gap-2">
+            <Input value={bannerUrl} onChange={(event) => setBannerUrl(event.target.value)} placeholder="https://cdn.../banner.jpg" />
+            <Label className="inline-flex h-10 cursor-pointer items-center rounded-md border border-input bg-secondary px-3 text-xs font-medium hover:bg-secondary/80">
+              <Upload className="mr-1.5 h-3.5 w-3.5" /> Upload
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(event) => {
+                  void handleAssetUpload(event.target.files?.[0], "banner");
+                  event.currentTarget.value = "";
+                }}
+              />
+            </Label>
+            <Button type="button" variant="outline" onClick={() => setBannerUrl("")} disabled={isUploadingBanner}>Clear</Button>
+          </div>
+          {isUploadingBanner && <p className="text-xs text-muted-foreground">Uploading banner...</p>}
+        </div>
+
+        <div className="space-y-2 md:col-span-2">
+          <Label>Background Image (Page Backdrop)</Label>
+          <div className="flex gap-2">
+            <Input value={backgroundUrl} onChange={(event) => setBackgroundUrl(event.target.value)} placeholder="https://cdn.../background.jpg" />
+            <Label className="inline-flex h-10 cursor-pointer items-center rounded-md border border-input bg-secondary px-3 text-xs font-medium hover:bg-secondary/80">
+              <Upload className="mr-1.5 h-3.5 w-3.5" /> Upload
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(event) => {
+                  void handleAssetUpload(event.target.files?.[0], "background");
+                  event.currentTarget.value = "";
+                }}
+              />
+            </Label>
+            <Button type="button" variant="outline" onClick={() => setBackgroundUrl("")} disabled={isUploadingBackground}>Clear</Button>
+          </div>
+          {isUploadingBackground && <p className="text-xs text-muted-foreground">Uploading background...</p>}
         </div>
 
         <div className="space-y-2">
-          <Label>Primary Color (HSL)</Label>
-          <Input value={primaryColor} onChange={(event) => setPrimaryColor(event.target.value)} />
+          <Label>Primary Brand Color</Label>
+          <div className="flex items-center gap-2">
+            <input type="color" value={parseLegacyHslToHex(primaryColor, "#2563eb")} onChange={(event) => setPrimaryColor(event.target.value)} className="h-10 w-14 rounded border border-input bg-secondary p-1" />
+            <Input value={primaryColor} onChange={(event) => setPrimaryColor(event.target.value)} />
+          </div>
         </div>
 
         <div className="space-y-2">
-          <Label>Accent Color (HSL)</Label>
-          <Input value={accentColor} onChange={(event) => setAccentColor(event.target.value)} />
+          <Label>Accent Brand Color</Label>
+          <div className="flex items-center gap-2">
+            <input type="color" value={parseLegacyHslToHex(accentColor, "#0ea5e9")} onChange={(event) => setAccentColor(event.target.value)} className="h-10 w-14 rounded border border-input bg-secondary p-1" />
+            <Input value={accentColor} onChange={(event) => setAccentColor(event.target.value)} />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Background Gradient Start</Label>
+          <div className="flex items-center gap-2">
+            <input type="color" value={parseLegacyHslToHex(backgroundStartColor, "#0f172a")} onChange={(event) => setBackgroundStartColor(event.target.value)} className="h-10 w-14 rounded border border-input bg-secondary p-1" />
+            <Input value={backgroundStartColor} onChange={(event) => setBackgroundStartColor(event.target.value)} />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Background Gradient End</Label>
+          <div className="flex items-center gap-2">
+            <input type="color" value={parseLegacyHslToHex(backgroundEndColor, "#1d4ed8")} onChange={(event) => setBackgroundEndColor(event.target.value)} className="h-10 w-14 rounded border border-input bg-secondary p-1" />
+            <Input value={backgroundEndColor} onChange={(event) => setBackgroundEndColor(event.target.value)} />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Banner Gradient Start</Label>
+          <div className="flex items-center gap-2">
+            <input type="color" value={parseLegacyHslToHex(bannerStartColor, "#1e293b")} onChange={(event) => setBannerStartColor(event.target.value)} className="h-10 w-14 rounded border border-input bg-secondary p-1" />
+            <Input value={bannerStartColor} onChange={(event) => setBannerStartColor(event.target.value)} />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Banner Gradient End</Label>
+          <div className="flex items-center gap-2">
+            <input type="color" value={parseLegacyHslToHex(bannerEndColor, "#0ea5e9")} onChange={(event) => setBannerEndColor(event.target.value)} className="h-10 w-14 rounded border border-input bg-secondary p-1" />
+            <Input value={bannerEndColor} onChange={(event) => setBannerEndColor(event.target.value)} />
+          </div>
+        </div>
+
+        <div className="space-y-2 md:col-span-2">
+          <Label>Gradient Angle</Label>
+          <div className="space-y-2 rounded-lg border border-border/60 bg-secondary/40 px-3 py-2">
+            <input type="range" min="0" max="360" value={gradientAngle} onChange={(event) => setGradientAngle(Number(event.target.value))} className="w-full" />
+            <div className="text-[10px] font-mono text-muted-foreground">{gradientAngle}deg</div>
+          </div>
         </div>
       </div>
 
       <div className="rounded-lg border border-border p-4">
         <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Live Preview</p>
-        <div className="rounded-lg px-4 py-7" style={{ background: `linear-gradient(135deg, hsl(${primaryColor}), hsl(${accentColor}))` }}>
-          <p className="text-white font-semibold">{org.name}</p>
-          <p className="text-white/80 text-xs">Portal header preview</p>
+        <div
+          className="rounded-lg border border-border p-3"
+          style={{
+            backgroundImage: backgroundUrl ? `url(${backgroundUrl})` : gradientCss(backgroundStartColor, backgroundEndColor, gradientAngle),
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        >
+          <div
+            className="rounded-lg px-4 py-7"
+            style={{
+              backgroundImage: bannerUrl
+                ? `linear-gradient(rgba(15, 23, 42, 0.38), rgba(15, 23, 42, 0.38)), url(${bannerUrl})`
+                : gradientCss(bannerStartColor, bannerEndColor, gradientAngle),
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+            }}
+          >
+            <p className="text-white font-semibold">{org.name}</p>
+            <p className="text-white/80 text-xs">Banner preview</p>
+          </div>
+          <div className="mt-3 inline-flex h-10 w-10 items-center justify-center rounded-md text-xs font-semibold text-white" style={{ background: gradientCss(primaryColor, accentColor, gradientAngle) }}>
+            {org.logo}
+          </div>
         </div>
       </div>
 
@@ -1463,7 +1670,16 @@ function BrandingPanel({ org, onSave }: { org: Organization; onSave: (updates: P
             await onSave({
               logoUrl,
               bannerUrl,
-              branding: { primaryColor, accentColor },
+              backgroundUrl,
+              branding: {
+                primaryColor,
+                accentColor,
+                backgroundStartColor,
+                backgroundEndColor,
+                bannerStartColor,
+                bannerEndColor,
+                gradientAngle,
+              },
             });
             toast.success("Branding updated");
           } catch (error) {
@@ -1625,10 +1841,15 @@ export default function AdminPage({ section = "organizations" }: AdminPageProps)
         <h1 className="font-mono text-xl font-bold tracking-tight">
           {isOrganizationsView ? "Organization Management" : "Program Control Center"}
         </h1>
+        <img
+          src="/3_banner.png"
+          alt="Admin banner"
+          className="mt-3 h-24 w-full rounded-md border border-border/60 object-cover"
+        />
         <p className="text-xs text-muted-foreground font-mono">
           {isOrganizationsView
-            ? "Manage organizations, ownership, domains, branding, and org-level access."
-            : "Manage suite-wide programs, launch destinations, and catalog visibility."}
+            ? "Manage organizations, branding, and access."
+            : "Manage programs, launch paths, and visibility."}
         </p>
       </div>
 

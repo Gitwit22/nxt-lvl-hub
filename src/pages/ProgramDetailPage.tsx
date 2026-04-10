@@ -5,14 +5,16 @@ import { Screw } from "@/components/Screw";
 import { ProgramLogo } from "@/components/ProgramLogo";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ExternalLink, ArrowRight } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 export default function ProgramDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { getProgram } = usePrograms();
+  const { isPlatformAdmin } = useAuth();
   const navigate = useNavigate();
   const program = getProgram(id || "");
 
-  if (!program) {
+  if (!program || (program.adminOnly && !isPlatformAdmin)) {
     return (
       <div className="p-10 text-center">
         <p className="stamped-label text-xs">Program not found.</p>
@@ -61,6 +63,7 @@ export default function ProgramDetailPage() {
             <div className="flex items-center gap-3 mt-2 flex-wrap">
               <StatusLED status={program.status} />
               <span className="stamped-label text-[9px]">{program.category}</span>
+              {program.secondaryCategory && <span className="stamped-label text-[9px]">{program.secondaryCategory}</span>}
               <span className="stamped-label text-[9px]">{program.origin === "suite-native" ? "Suite Native" : "External Partner"}</span>
             </div>
           </div>

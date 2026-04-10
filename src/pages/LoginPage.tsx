@@ -5,12 +5,14 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SUITE_DOMAIN } from "@/lib/orgRoutes";
 
 export default function LoginPage() {
   const { login, register } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname;
+  const returnTo = new URLSearchParams(location.search).get("returnTo");
 
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
@@ -22,6 +24,22 @@ export default function LoginPage() {
   const [showSetupToken, setShowSetupToken] = useState(false);
 
   const resolveDestination = async (profile: Awaited<ReturnType<typeof login>>) => {
+    if (returnTo) {
+      if (returnTo.startsWith("/")) {
+        return returnTo;
+      }
+
+      try {
+        const parsed = new URL(returnTo);
+        const host = parsed.hostname.toLowerCase();
+        if (host === SUITE_DOMAIN || host.endsWith(`.${SUITE_DOMAIN}`)) {
+          return parsed.toString();
+        }
+      } catch {
+        // Ignore invalid returnTo values.
+      }
+    }
+
     const isAdminRoute = from?.startsWith("/admin") ?? false;
 
     if (from && (!isAdminRoute || profile.isPlatformAdmin)) {
@@ -48,7 +66,11 @@ export default function LoginPage() {
 
       const destination = await resolveDestination(profile);
       console.log("[auth] login: navigating to", destination);
-      navigate(destination, { replace: true });
+      if (/^https?:\/\//i.test(destination)) {
+        window.location.assign(destination);
+      } else {
+        navigate(destination, { replace: true });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Authentication failed.");
     } finally {

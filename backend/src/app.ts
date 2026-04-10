@@ -8,6 +8,7 @@ import { apiRouter } from "./routes/index.js";
 import { getAllowedOrigins, env } from "./config/env.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { notFoundMiddleware } from "./middleware/not-found.js";
+import { resolveOrganizationFromHost } from "./middleware/resolve-organization.js";
 
 export function createApp() {
   const app = express();
@@ -29,6 +30,7 @@ export function createApp() {
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
   app.use("/uploads", express.static(path.resolve(env.uploadPath)));
+  app.use(resolveOrganizationFromHost);
   app.use("/api", apiRouter);
 
   if (hasBuiltFrontend) {

@@ -410,6 +410,7 @@ export function normalizeProgram(record: ProgramRecord): Program {
     shortDescription: source.shortDescription || `${source.name} workspace`,
     longDescription: source.longDescription || source.shortDescription || `${source.name} workspace`,
     category: source.category || "Operations",
+    secondaryCategory: source.secondaryCategory ?? undefined,
     tags: Array.isArray(source.tags) ? source.tags : [],
     status: source.status || "live",
     type: source.type || (source.externalUrl ? "external" : "internal"),
@@ -425,6 +426,7 @@ export function normalizeProgram(record: ProgramRecord): Program {
     cardGlowColor: source.cardGlowColor ?? undefined,
     cardGlowOpacity: typeof source.cardGlowOpacity === "number" ? source.cardGlowOpacity : undefined,
     cardHoverTintOpacity: typeof source.cardHoverTintOpacity === "number" ? source.cardHoverTintOpacity : undefined,
+    adminOnly: source.adminOnly ?? false,
     isFeatured: source.isFeatured ?? false,
     isPublic: source.isPublic ?? true,
     requiresLogin: source.requiresLogin ?? false,
@@ -455,26 +457,44 @@ export function normalizeOrganization(record: OrganizationRecord): Organization 
     slug,
     description: source.description || source.notes || "",
     subdomain,
-    contactEmail: source.contactEmail || source.supportEmail || "support@nltops.com",
-    ownerEmail: source.ownerEmail || source.contactEmail || source.supportEmail || "owner@nltops.com",
+    contactEmail: source.contactEmail || source.supportEmail || "support@ntlops.com",
+    ownerEmail: source.ownerEmail || source.contactEmail || source.supportEmail || "owner@ntlops.com",
     ownerUserId: source.ownerUserId ?? undefined,
     logo: source.logo || initials,
     logoUrl: source.logoUrl ?? undefined,
+    faviconUrl: source.faviconUrl ?? undefined,
     bannerUrl: source.bannerUrl ?? undefined,
+    backgroundUrl: source.backgroundUrl ?? undefined,
+    portalTitle: source.portalTitle || "",
     welcomeMessage: source.welcomeMessage || `Welcome to ${name}.`,
-    supportEmail: source.supportEmail || source.contactEmail || "support@nltops.com",
+    supportEmail: source.supportEmail || source.contactEmail || "support@ntlops.com",
     supportContactName: source.supportContactName || `${name} Support`,
+    supportPhone: source.supportPhone || undefined,
     phoneNumber: source.phoneNumber || undefined,
     industryType: source.industryType || undefined,
     notes: source.notes || undefined,
     planType: source.planType || "starter",
+    billingPlan: source.billingPlan ?? undefined,
     seatLimit: source.seatLimit ?? 25,
     status: (source.status as Organization["status"]) || (source.isActive === false ? "suspended" : "active"),
     trialEndsAt: source.trialEndsAt || undefined,
+    customDomain: source.customDomain ?? undefined,
     createdAt: source.createdAt || now,
     lastActivityAt: source.lastActivityAt || source.createdAt || now,
-    branding: source.branding || { primaryColor: "217 80% 56%", accentColor: "191 85% 47%" },
+    branding: {
+      primaryColor: source.branding?.primaryColor || "217 80% 56%",
+      secondaryColor: source.branding?.secondaryColor || "220 70% 40%",
+      accentColor: source.branding?.accentColor || "191 85% 47%",
+      backgroundColor: source.branding?.backgroundColor || "#0f172a",
+      backgroundStartColor: source.branding?.backgroundStartColor || "#0f172a",
+      backgroundEndColor: source.branding?.backgroundEndColor || "#1d4ed8",
+      bannerStartColor: source.branding?.bannerStartColor || "#1e293b",
+      bannerEndColor: source.branding?.bannerEndColor || "#0ea5e9",
+      gradientAngle: typeof source.branding?.gradientAngle === "number" ? source.branding.gradientAngle : 135,
+      fontFamily: source.branding?.fontFamily || "inter",
+    },
     assignedProgramIds: Array.isArray(source.assignedProgramIds) ? source.assignedProgramIds : [],
+    enabledModules: Array.isArray(source.enabledModules) ? source.enabledModules : [],
     assignedBundleIds: Array.isArray(source.assignedBundleIds) ? source.assignedBundleIds : [],
     announcements: Array.isArray(source.announcements) ? source.announcements : [],
     tags: Array.isArray(source.tags) ? source.tags : [],
@@ -504,6 +524,7 @@ export function toProgramMutationInput(program: Program): ProgramMutationInput {
     shortDescription: program.shortDescription,
     longDescription: program.longDescription,
     category: program.category,
+    secondaryCategory: program.secondaryCategory || null,
     tags: program.tags,
     status: program.status,
     type: program.type,
@@ -519,6 +540,7 @@ export function toProgramMutationInput(program: Program): ProgramMutationInput {
     cardGlowColor: program.cardGlowColor || null,
     cardGlowOpacity: program.cardGlowOpacity ?? null,
     cardHoverTintOpacity: program.cardHoverTintOpacity ?? null,
+    adminOnly: program.adminOnly ?? false,
     isFeatured: program.isFeatured,
     isPublic: program.isPublic,
     requiresLogin: program.requiresLogin,
@@ -544,6 +566,7 @@ export function toOrganizationMutationInput(organization: Organization): Organiz
     logo: organization.logo,
     logoUrl: organization.logoUrl || null,
     bannerUrl: organization.bannerUrl || null,
+    backgroundUrl: organization.backgroundUrl || null,
     welcomeMessage: organization.welcomeMessage,
     supportEmail: organization.supportEmail,
     supportContactName: organization.supportContactName,
@@ -574,6 +597,47 @@ export function toOrgUserMutationInput(user: PortalUser): OrgUserMutationInput {
     active: user.active,
     assignedProgramIds: user.assignedProgramIds,
   };
+}
+
+export interface PortalStatusResponse {
+  organizationId: string;
+  slug: string;
+  subdomain: string;
+  name: string;
+  status: string;
+  enabledPrograms: string[];
+  enabledModules: string[];
+  portalTitle: string;
+  customDomain: string | null;
+}
+
+export function getPortalStatus(slugOrSubdomain: string) {
+  return apiRequest<PortalStatusResponse>(`/api/organization/portal-status?slug=${encodeURIComponent(slugOrSubdomain)}`);
+}
+
+export interface PortalBootstrapResponse {
+  organization: OrganizationRecord;
+  branding: OrganizationRecord["branding"];
+  membership: {
+    orgId: string;
+    userId: string;
+    role: string;
+    active: boolean;
+    email: string;
+    name: string;
+  } | null;
+  enabledModules: string[];
+  enabledPrograms: ProgramRecord[];
+  portalStatus: {
+    status: string;
+    isPending: boolean;
+    isActive: boolean;
+    isSuspended: boolean;
+  };
+}
+
+export function getPortalBootstrap() {
+  return apiRequest<PortalBootstrapResponse>("/api/portal/bootstrap");
 }
 
 export function listPrograms() {

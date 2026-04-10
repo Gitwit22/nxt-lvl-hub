@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useOrgPortal } from "@/context/OrgPortalContext";
+import { getOrganizationSlugFromHost, SUITE_DOMAIN } from "@/lib/orgRoutes";
 
 interface ProtectedRouteProps {
   requirePlatformAdmin?: boolean;
@@ -20,6 +21,13 @@ export function ProtectedRoute({ requirePlatformAdmin = false }: ProtectedRouteP
   }
 
   if (!isAuthenticated) {
+    const portalSlug = getOrganizationSlugFromHost(window.location.hostname);
+    if (portalSlug) {
+      const returnTo = encodeURIComponent(window.location.href);
+      window.location.assign(`https://${SUITE_DOMAIN}/login?returnTo=${returnTo}`);
+      return null;
+    }
+
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

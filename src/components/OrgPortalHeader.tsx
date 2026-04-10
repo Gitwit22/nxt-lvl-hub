@@ -2,6 +2,21 @@ import { Organization, PortalUser, orgRoleLabels } from "@/types/orgPortal";
 import { Badge } from "@/components/ui/badge";
 import { Users, LayoutGrid, ShieldCheck } from "lucide-react";
 
+function toCssColor(color?: string, fallback = "#2563eb") {
+  if (!color) return fallback;
+  if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl") || color.startsWith("var(")) {
+    return color;
+  }
+  if (/^(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%$/.test(color)) {
+    return `hsl(${color})`;
+  }
+  return fallback;
+}
+
+function gradientCss(start?: string, end?: string, angle = 135) {
+  return `linear-gradient(${Math.max(0, Math.min(angle, 360))}deg, ${toCssColor(start, "#1e293b")}, ${toCssColor(end, "#0ea5e9")})`;
+}
+
 interface OrgPortalHeaderProps {
   organization: Organization;
   currentUser?: PortalUser;
@@ -15,14 +30,36 @@ export function OrgPortalHeader({
   activeProgramsCount,
   activeUsersCount,
 }: OrgPortalHeaderProps) {
+  const bannerFallback = gradientCss(
+    organization.branding.bannerStartColor || organization.branding.primaryColor,
+    organization.branding.bannerEndColor || organization.branding.accentColor,
+    organization.branding.gradientAngle ?? 135,
+  );
+  const backgroundFallback = gradientCss(
+    organization.branding.backgroundStartColor || organization.branding.primaryColor,
+    organization.branding.backgroundEndColor || organization.branding.accentColor,
+    organization.branding.gradientAngle ?? 135,
+  );
+
   return (
-    <section className="rounded-xl border border-border bg-card/80 p-6 md:p-8 backdrop-blur-sm">
+    <section
+      className="rounded-xl border border-border p-6 md:p-8 backdrop-blur-sm"
+      style={{
+        backgroundImage: organization.bannerUrl
+          ? `linear-gradient(rgba(15, 23, 42, 0.52), rgba(15, 23, 42, 0.52)), url(${organization.bannerUrl})`
+          : organization.backgroundUrl
+            ? `linear-gradient(rgba(15, 23, 42, 0.32), rgba(15, 23, 42, 0.32)), url(${organization.backgroundUrl})`
+            : `${bannerFallback}, ${backgroundFallback}`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
+    >
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex items-start gap-4">
           <div
             className="flex h-14 w-14 items-center justify-center rounded-2xl text-sm font-bold text-white"
             style={{
-              background: `linear-gradient(135deg, hsl(${organization.branding.primaryColor}), hsl(${organization.branding.accentColor}))`,
+              background: gradientCss(organization.branding.primaryColor, organization.branding.accentColor, organization.branding.gradientAngle ?? 135),
             }}
           >
             {organization.logo}

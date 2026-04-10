@@ -1,9 +1,13 @@
-import { Building2, Home, Info, LayoutGrid, Users } from "lucide-react";
+import { Building2, Home, Info, LayoutGrid, LogOut, Users } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/context/AuthContext";
+import { useNavigate } from "react-router-dom";
+import { getErrorMessage } from "@/lib/api";
+import { toast } from "sonner";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -15,7 +19,8 @@ import {
 
 export function AppSidebar() {
   const { state } = useSidebar();
-  const { isPlatformAdmin } = useAuth();
+  const { isPlatformAdmin, logout } = useAuth();
+  const navigate = useNavigate();
   const collapsed = state === "collapsed";
   const navItems = [
     { title: "Home", url: "/home", icon: Home },
@@ -28,6 +33,16 @@ export function AppSidebar() {
       : []),
     { title: "About", url: "/about", icon: Info },
   ];
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate("/login", { replace: true });
+      toast.success("Logged out successfully.");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
+  };
 
   return (
     <Sidebar collapsible="icon">
@@ -65,6 +80,16 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter className="border-t border-border/70 knurled mt-auto">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={() => void handleLogout()} className="hover:bg-sidebar-accent/50 font-mono text-xs tracking-wide text-destructive hover:text-destructive">
+              <LogOut className="mr-2 h-4 w-4" />
+              {!collapsed && <span>Logout</span>}
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
   );
 }
