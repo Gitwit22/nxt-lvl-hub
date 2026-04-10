@@ -5,7 +5,7 @@ import { ProgramLogo } from "@/components/ProgramLogo";
 import { ExternalLink, ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getAccessToken } from "@/lib/api";
+import { generateLaunchTokenApi } from "@/lib/api";
 
 interface ProgramCardProps {
   program: Program;
@@ -43,6 +43,7 @@ function hexToRgba(hex: string, opacityPercent: number) {
 export function ProgramCard({ program, compact }: ProgramCardProps) {
   const navigate = useNavigate();
   const [isHovered, setIsHovered] = useState(false);
+  const [isLaunching, setIsLaunching] = useState(false);
   const isLaunchable = program.status === "live" || program.status === "beta" || program.status === "internal";
   const baseCardOpacity = program.cardBackgroundOpacity ?? 0;
   const hoverTintOpacity = program.cardHoverTintOpacity ?? 0;
@@ -58,54 +59,37 @@ export function ProgramCard({ program, compact }: ProgramCardProps) {
     ? `${isHovered ? "0 0 0 1px" : "0 0 0 1px"} ${hexToRgba(resolvedGlowColor, Math.max(glowOpacity, 6))}, ${isHovered ? "0 0 36px" : "0 0 18px"} ${hexToRgba(resolvedGlowColor, Math.max(glowOpacity * 0.7, 8))}`
     : undefined;
 
-  const resolveExternalLaunchUrl = (url: string) => {
-    const token = getAccessToken();
-    if (!token) {
-      console.info("[suite-launch] generated url (no token)", {
-        app: program.slug || program.name,
-        rawUrl: url,
-      });
-      return url;
-    }
-
-    try {
-      const target = new URL(url, window.location.origin);
-      const host = target.hostname.toLowerCase();
-      const supportsSuiteLaunch = SUITE_LAUNCH_HOST_HINTS.some((hint) => host.includes(hint));
-      if (!supportsSuiteLaunch) {
-        console.info("[suite-launch] generated url (external direct)", {
-          app: program.slug || program.name,
-          rawUrl: url,
-        });
-        return url;
-      }
-
-      target.pathname = "/launch";
-      if (!target.searchParams.get("token")) {
-        target.searchParams.set("token", token);
-      }
-      console.info("[suite-launch] generated url", {
-        app: program.slug || program.name,
-        destination: target.toString(),
-        hasToken: true,
-        openInNewTab: program.openInNewTab,
-      });
-      return target.toString();
-    } catch {
-      console.warn("[suite-launch] failed to build launch url, using raw url", {
-        app: program.slug || program.name,
-        rawUrl: url,
-      });
-      return url;
-    }
-  };
-
-  const handleLaunch = (e: React.MouseEvent) => {
+  const handleLaunch = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!isLaunchable) return;
+    if (!isLaunchable || isLaunching) return;
+
     if (program.type === "external" && program.externalUrl) {
-      window.open(resolveExternalLaunchUrl(program.externalUrl), program.openInNewTab ? "_blank" : "_self");
-    } else if (program.internalRoute) {
+      try {
+        const target = new URL(program.externalUrl, window.location.origin);
+        const host = target.hostname.toLowerCase();
+        const hint = SUITE_LAUNCH_HOST_HINTS.find((h) => host.includes(h));
+
+        if (hint) {
+          setIsLaunching(true);
+          try {
+            const launchToken = await generateLaunchTokenApi(program.organizationId, hint);
+            target.searchParams.set("token", launchToken);
+            window.open(target.toString(), program.openInNewTab ? "_blank" : "_self");
+          } catch {
+            window.open(program.externalUrl, program.openInNewTab ? "_blank" : "_self");
+          } finally {
+            setIsLaunching(false);
+          }
+          return;
+        }
+      } catch {
+        // URL parse failed — fall through to plain open
+      }
+      window.open(program.externalUrl, program.openInNewTab ? "_blank" : "_self");
+      return;
+    }
+
+    if (program.internalRoute) {
       const route = program.internalRoute;
       const isExternal = route.startsWith("http://") || route.startsWith("https://") || (!route.startsWith("/") && route.includes("."));
       if (isExternal) {
@@ -157,8 +141,9 @@ export function ProgramCard({ program, compact }: ProgramCardProps) {
           <span className="stamped-label text-[9px]">{program.category}</span>
           {isLaunchable ? (
             <button
-              onClick={handleLaunch}
-              className="metal-button rounded px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-foreground hover:text-primary transition-colors flex items-center gap-1"
+              onClick={(e) => { void handleLaunch(e); }}
+              disabled={isLaunching}
+              className="metal-button rounded px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-foreground hover:text-primary transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {program.type === "external" ? (
                 <>Launch <ExternalLink className="h-2.5 w-2.5" /></>

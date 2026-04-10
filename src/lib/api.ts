@@ -377,10 +377,10 @@ export async function bootstrapAdminApi(setupToken: string): Promise<AuthTokenRe
   return normalizeAuthResponse(payload);
 }
 
-export async function generateLaunchTokenApi(organizationId: string, programDomain: string): Promise<string> {
+export async function generateLaunchTokenApi(organizationId: string | undefined, programDomain: string): Promise<string> {
   const data = await apiRequest<{ launchToken: string }>("/api/auth/launch-token", {
     method: "POST",
-    body: JSON.stringify({ organizationId, programDomain }),
+    body: JSON.stringify({ programDomain, ...(organizationId ? { organizationId } : {}) }),
   });
   return data.launchToken;
 }

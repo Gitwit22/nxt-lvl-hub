@@ -2,13 +2,8 @@ import { useState } from "react";
 import { SuiteProgram } from "@/types/orgPortal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-<<<<<<< HEAD
 import { ArrowUpRight, Clock3, Loader2, Wrench } from "lucide-react";
 import { generateLaunchTokenApi } from "@/lib/api";
-=======
-import { ArrowUpRight, Clock3, Wrench } from "lucide-react";
-import { getAccessToken } from "@/lib/api";
->>>>>>> 110f65d6d293c99b51124b1e5e9326cbfb22d15d
 
 interface OrgProgramCardProps {
   program: SuiteProgram;
@@ -22,7 +17,6 @@ const statusClass: Record<SuiteProgram["status"], string> = {
   "coming-soon": "bg-muted text-muted-foreground border-border",
 };
 
-<<<<<<< HEAD
 export function OrgProgramCard({ program, orgId }: OrgProgramCardProps) {
   const isLaunchable = program.status === "active" || program.status === "beta";
   const [isLaunching, setIsLaunching] = useState(false);
@@ -51,41 +45,6 @@ export function OrgProgramCard({ program, orgId }: OrgProgramCardProps) {
 
     if (isExternal) {
       window.open(program.launchUrl, "_blank", "noopener,noreferrer");
-=======
-const SUITE_LAUNCH_HOST_HINTS = ["community-chronicle", "mission-hub"];
-const LANDING_FIRST_HOST_HINTS = ["community-chronicle"];
-
-export function OrgProgramCard({ program }: OrgProgramCardProps) {
-  const isLaunchable = program.status === "active" || program.status === "beta";
-
-  const resolveExternalLaunchUrl = (url: string) => {
-    const token = getAccessToken();
-    if (!token) return url;
-
-    try {
-      const target = new URL(url, window.location.origin);
-      const host = target.hostname.toLowerCase();
-      const supportsSuiteLaunch = SUITE_LAUNCH_HOST_HINTS.some((hint) => host.includes(hint));
-      if (!supportsSuiteLaunch) {
-        return url;
-      }
-
-      const shouldOpenLandingFirst = LANDING_FIRST_HOST_HINTS.some((hint) => host.includes(hint));
-      target.pathname = shouldOpenLandingFirst ? "/landing" : "/launch";
-      if (!target.searchParams.get("token")) {
-        target.searchParams.set("token", token);
-      }
-      return target.toString();
-    } catch {
-      return url;
-    }
-  };
-
-  const launchProgram = () => {
-    if (!isLaunchable) return;
-    if (program.launchUrl.startsWith("http")) {
-      window.open(resolveExternalLaunchUrl(program.launchUrl), "_blank", "noopener,noreferrer");
->>>>>>> 110f65d6d293c99b51124b1e5e9326cbfb22d15d
       return;
     }
     window.location.assign(program.launchUrl);
