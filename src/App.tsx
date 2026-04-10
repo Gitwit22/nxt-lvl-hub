@@ -52,7 +52,7 @@ function RootResolver() {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/site/login" replace />;
   }
 
   if (isPlatformAdmin) {
@@ -75,7 +75,10 @@ const App = () => (
                 <Route path="/" element={<PublicHomePage />} />
                 <Route path="/apps" element={<PublicAppsPage />} />
                 <Route path="/apps/:appSlug" element={<PublicAppDetailPage />} />
-                <Route path="/login" element={<LoginPage />} />
+                <Route path="/site/login" element={<LoginPage />} />
+                <Route path="/login" element={<Navigate to="/site/login" replace />} />
+                <Route path="/signin" element={<Navigate to="/site/login" replace />} />
+                <Route path="/auth/login" element={<Navigate to="/site/login" replace />} />
                 <Route path="/dashboard" element={<RootResolver />} />
                 <Route path="/app" element={<RootResolver />} />
 

@@ -4,7 +4,36 @@
  */
 
 const SUITE_URL = (import.meta.env.VITE_SUITE_URL as string | undefined) ?? "";
-const SUITE_DOMAIN = "ntlops.com";
+const SUITE_LOGIN_PATH = (import.meta.env.VITE_SUITE_LOGIN_PATH as string | undefined) ?? "/site/login";
+const SUITE_SIGNUP_PATH = (import.meta.env.VITE_SUITE_SIGNUP_PATH as string | undefined) ?? "/site/register";
+const APP_LOGIN_ENTRY_PATH = "/site/login";
+
+const SUITE_HOST_PRIMARY = "nltops.com";
+const SUITE_HOST_FALLBACK = "ntlops.com";
+
+function isLocalhost(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1";
+}
+
+function resolveSuiteBaseUrl(): string {
+  if (SUITE_URL) return SUITE_URL;
+
+  const host = window.location.hostname.toLowerCase();
+
+  if (isLocalhost(host)) {
+    return "http://localhost:3000";
+  }
+
+  if (host === SUITE_HOST_PRIMARY || host.endsWith(`.${SUITE_HOST_PRIMARY}`)) {
+    return `https://${SUITE_HOST_PRIMARY}`;
+  }
+
+  if (host === SUITE_HOST_FALLBACK || host.endsWith(`.${SUITE_HOST_FALLBACK}`)) {
+    return `https://${SUITE_HOST_FALLBACK}`;
+  }
+
+  return `https://${SUITE_HOST_PRIMARY}`;
+}
 
 /**
  * Validates that a return path is safe (same origin).
@@ -33,46 +62,49 @@ function normalizeReturnPath(value?: string): string | undefined {
  */
 export function getSuiteLoginUrl(returnTo?: string): string {
   const normalizedReturnPath = normalizeReturnPath(returnTo);
+  const suiteBaseUrl = resolveSuiteBaseUrl();
 
   if (!SUITE_URL) {
-    // Development fallback: log warning and construct a likely Suite URL
-    console.warn(
-      "[Suite Auth] VITE_SUITE_URL not configured. Please set VITE_SUITE_URL in .env to enable Suite login.",
-      "Expected format: https://ntlops.com or similar."
-    );
-    
-    // Attempt to construct Suite URL based on current host
-    try {
-      const currentHost = window.location.hostname;
-      let suiteHost = SUITE_DOMAIN;
-      
-      // If running on a subdomain of SUITE_DOMAIN, redirect to root
-      if (currentHost.endsWith(`.${SUITE_DOMAIN}`) || currentHost === SUITE_DOMAIN) {
-        suiteHost = SUITE_DOMAIN;
-      }
-      
-      const url = new URL(`https://${suiteHost}/login`);
-      url.searchParams.set("next", "nxt-lvl-suites");
-      if (normalizedReturnPath) {
-        url.searchParams.set("returnTo", normalizedReturnPath);
-      }
-      return url.toString();
-    } catch (err) {
-      console.error("[Suite Auth] Failed to construct fallback Suite URL", err);
-      return "/";
-    }
+    console.warn("[Suite Auth] VITE_SUITE_URL missing. Using fallback base URL:", suiteBaseUrl);
   }
 
   try {
-    const url = new URL("/login", SUITE_URL);
+    const url = new URL(SUITE_LOGIN_PATH, suiteBaseUrl);
     url.searchParams.set("next", "nxt-lvl-suites");
     if (normalizedReturnPath) {
       url.searchParams.set("returnTo", normalizedReturnPath);
     }
-    return url.toString();
+    const resolved = url.toString();
+
+    // Avoid a same-page no-op navigation loop.
+    if (resolved === window.location.href) {
+      const alternateBase = suiteBaseUrl.includes(SUITE_HOST_PRIMARY)
+        ? `https://${SUITE_HOST_FALLBACK}`
+        : `https://${SUITE_HOST_PRIMARY}`;
+      const alternate = new URL(SUITE_LOGIN_PATH, alternateBase);
+      alternate.search = url.search;
+      const alternateResolved = alternate.toString();
+      if (alternateResolved === window.location.href) {
+        return `${APP_LOGIN_ENTRY_PATH}?suiteAuthMisconfigured=1`;
+      }
+      return alternateResolved;
+    }
+
+    // Prevent path-level loop (/site/login -> /site/login with tiny query differences).
+    const currentUrl = new URL(window.location.href);
+    const targetUrl = new URL(resolved);
+    if (
+      currentUrl.origin === targetUrl.origin &&
+      currentUrl.pathname === targetUrl.pathname &&
+      ["/login", "/site/login", "/signin", "/auth/login"].includes(currentUrl.pathname)
+    ) {
+      return `${APP_LOGIN_ENTRY_PATH}?suiteAuthMisconfigured=1`;
+    }
+
+    return resolved;
   } catch (err) {
     console.error("[Suite Auth] Failed to construct Suite login URL", err);
-    return "/";
+    return `${APP_LOGIN_ENTRY_PATH}?suiteAuthError=1`;
   }
 }
 
@@ -81,20 +113,22 @@ export function getSuiteLoginUrl(returnTo?: string): string {
  */
 export function getSuiteSignupUrl(returnTo?: string): string {
   const normalizedReturnPath = normalizeReturnPath(returnTo);
+  const suiteBaseUrl = resolveSuiteBaseUrl();
 
   if (!SUITE_URL) {
-    return "/";
+    console.warn("[Suite Auth] VITE_SUITE_URL missing. Using fallback base URL:", suiteBaseUrl);
   }
 
   try {
-    const url = new URL("/signup", SUITE_URL);
+    const url = new URL(SUITE_SIGNUP_PATH, suiteBaseUrl);
     url.searchParams.set("next", "nxt-lvl-suites");
     if (normalizedReturnPath) {
       url.searchParams.set("returnTo", normalizedReturnPath);
     }
     return url.toString();
-  } catch {
-    return "/";
+  } catch (err) {
+    console.error("[Suite Auth] Failed to construct Suite signup URL", err);
+    return `${APP_LOGIN_ENTRY_PATH}?suiteAuthError=1`;
   }
 }
 
@@ -102,9 +136,9 @@ export function getSuiteSignupUrl(returnTo?: string): string {
  * Constructs a Suite URL for navigation.
  */
 export function getSuiteUrl(path: string = ""): string {
-  if (!SUITE_URL) return "";
+  const suiteBaseUrl = resolveSuiteBaseUrl();
   try {
-    const url = new URL(path, SUITE_URL);
+    const url = new URL(path, suiteBaseUrl);
     return url.toString();
   } catch {
     return "";
@@ -115,7 +149,7 @@ export function getSuiteUrl(path: string = ""): string {
  * Check whether to use Suite auth based on environment.
  */
 export function isSuiteAuthConfigured(): boolean {
-  return Boolean(SUITE_URL && SUITE_URL.length > 0);
+  return Boolean(resolveSuiteBaseUrl());
 }
 
 /**
