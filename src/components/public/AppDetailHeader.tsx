@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
-import { ProgramLogo } from "@/components/ProgramLogo";
 import type { AppCatalogEntry } from "@/lib/appCatalog";
+import { AppIdentityMark } from "@/components/public/AppIdentityMark";
 
 function accessLabel(accessType: AppCatalogEntry["accessType"]) {
   return accessType === "internal" ? "Internal" : "External";
@@ -11,7 +11,7 @@ export function AppDetailHeader({ app }: { app: AppCatalogEntry }) {
     <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-[0_16px_50px_rgba(8,15,30,0.28)] backdrop-blur-xl sm:p-8">
       <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
         <div className="flex items-start gap-4">
-          <ProgramLogo name={app.name} logoUrl={app.logoUrl} accentColor="#7dd3fc" className="h-16 w-16 rounded-[1.5rem] border border-white/10 bg-white/5" textClassName="text-xl text-sky-100" />
+          <AppIdentityMark app={app} className="h-16 w-16" />
           <div className="space-y-3">
             <div>
               <p className="text-sm uppercase tracking-[0.24em] text-sky-100/70">App Detail</p>

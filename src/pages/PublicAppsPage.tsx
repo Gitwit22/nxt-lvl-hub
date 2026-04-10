@@ -9,7 +9,6 @@ export default function PublicAppsPage() {
   const { programs } = usePrograms();
   const apps = useMemo(() => getPublicAppCatalog(programs), [programs]);
   const [search, setSearch] = useState("");
-  const [accessType, setAccessType] = useState("all");
   const [category, setCategory] = useState("all");
 
   const categories = useMemo(
@@ -22,12 +21,11 @@ export default function PublicAppsPage() {
 
     return apps.filter((app) => {
       const matchesSearch = !searchValue || app.name.toLowerCase().includes(searchValue);
-      const matchesAccessType = accessType === "all" || app.accessType === accessType;
       const matchesCategory = category === "all" || app.category === category;
 
-      return matchesSearch && matchesAccessType && matchesCategory;
+      return matchesSearch && matchesCategory;
     });
-  }, [accessType, apps, category, search]);
+  }, [apps, category, search]);
 
   return (
     <SiteShell>
@@ -43,8 +41,6 @@ export default function PublicAppsPage() {
         <AppFilters
           search={search}
           onSearchChange={setSearch}
-          accessType={accessType}
-          onAccessTypeChange={setAccessType}
           category={category}
           onCategoryChange={setCategory}
           categories={categories}
@@ -55,7 +51,7 @@ export default function PublicAppsPage() {
         ) : (
           <section className="rounded-[2rem] border border-dashed border-white/15 bg-slate-950/50 p-10 text-center">
             <p className="text-lg font-medium text-white">No apps match the current filters.</p>
-            <p className="mt-2 text-sm text-slate-400">Adjust the search, access type, or category and try again.</p>
+            <p className="mt-2 text-sm text-slate-400">Adjust the search or category and try again.</p>
           </section>
         )}
       </div>

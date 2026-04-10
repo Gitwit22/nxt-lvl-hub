@@ -1,18 +1,24 @@
-import { ArrowRight, LayoutGrid, Sparkles } from "lucide-react";
+import { LayoutGrid, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/context/AuthContext";
-
-function getDashboardPath(isPlatformAdmin: boolean) {
-  return isPlatformAdmin ? "/admin/organizations" : "/home";
-}
 
 export function SiteHero() {
-  const { isAuthenticated, isPlatformAdmin } = useAuth();
-  const dashboardPath = getDashboardPath(isPlatformAdmin);
-
   return (
-    <section className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+    <section className="space-y-8">
+      <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] p-3 shadow-[0_18px_60px_rgba(8,15,30,0.4)] backdrop-blur-xl">
+        <div className="absolute -right-20 top-0 h-52 w-52 rounded-full bg-cyan-400/20 blur-3xl" />
+        <div className="absolute -left-10 bottom-0 h-44 w-44 rounded-full bg-blue-500/20 blur-3xl" />
+
+        <div className="relative space-y-3">
+          <img
+            src="/3_banner.png"
+            alt="Nxt Lvl Suites banner"
+            className="h-[180px] w-full rounded-2xl border border-white/10 object-cover sm:h-[220px] lg:h-[260px]"
+          />
+          <p className="px-2 text-xs uppercase tracking-[0.22em] text-sky-100/70">Public app directory and launch hub</p>
+        </div>
+      </div>
+
       <div className="space-y-6">
         <div className="inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-300/10 px-3 py-1 text-xs uppercase tracking-[0.2em] text-sky-100/85">
           <Sparkles className="h-3.5 w-3.5" /> Suite access layer
@@ -41,25 +47,6 @@ export function SiteHero() {
               <LayoutGrid className="h-4 w-4" /> View Apps
             </Link>
           </Button>
-          <Button asChild size="lg" variant="outline">
-            <Link to={isAuthenticated ? dashboardPath : "/login"}>
-              {isAuthenticated ? "Dashboard" : "Sign In"} <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-        </div>
-      </div>
-
-      <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-[0_18px_60px_rgba(8,15,30,0.4)] backdrop-blur-xl">
-        <div className="absolute -right-20 top-0 h-52 w-52 rounded-full bg-cyan-400/20 blur-3xl" />
-        <div className="absolute -left-10 bottom-0 h-44 w-44 rounded-full bg-blue-500/20 blur-3xl" />
-
-        <div className="relative space-y-3">
-          <img
-            src="/3_banner.png"
-            alt="Nxt Lvl Suites banner"
-            className="w-full rounded-2xl border border-white/10 object-cover"
-          />
-          <p className="text-xs uppercase tracking-[0.22em] text-sky-100/70">Public app directory and launch hub</p>
         </div>
       </div>
     </section>

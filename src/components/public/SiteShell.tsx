@@ -1,19 +1,8 @@
 import type { ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
-import { LayoutGrid, LogIn, ShieldCheck } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
+import { LogIn, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-function getDashboardPath(isPlatformAdmin: boolean) {
-  return isPlatformAdmin ? "/admin/organizations" : "/home";
-}
-
-function getInitials(email: string | null) {
-  if (!email) return "NL";
-  const [localPart] = email.split("@");
-  return localPart.slice(0, 2).toUpperCase() || "NL";
-}
 
 function BrandMark() {
   return (
@@ -25,9 +14,6 @@ function BrandMark() {
 }
 
 export function SiteShell({ children }: { children: ReactNode }) {
-  const { isAuthenticated, isPlatformAdmin, authEmail } = useAuth();
-  const dashboardPath = getDashboardPath(isPlatformAdmin);
-
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.14),_transparent_34%),linear-gradient(180deg,_#08111f_0%,_#0b1324_42%,_#0f172a_100%)] text-foreground">
       <div className="absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.06)_1px,transparent_1px)] bg-[size:36px_36px] opacity-30" />
@@ -66,24 +52,11 @@ export function SiteShell({ children }: { children: ReactNode }) {
               </div>
 
               <div className="flex items-center gap-2">
-                {isAuthenticated ? (
-                  <>
-                    <div className="hidden h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-xs font-semibold text-sky-100 sm:flex">
-                      {getInitials(authEmail)}
-                    </div>
-                    <Button asChild>
-                      <Link to={dashboardPath}>
-                        <LayoutGrid className="h-4 w-4" /> Dashboard
-                      </Link>
-                    </Button>
-                  </>
-                ) : (
-                  <Button asChild>
-                    <Link to="/login">
-                      <LogIn className="h-4 w-4" /> Sign In
-                    </Link>
-                  </Button>
-                )}
+                <Button asChild>
+                  <Link to="/login">
+                    <LogIn className="h-4 w-4" /> Login
+                  </Link>
+                </Button>
               </div>
             </div>
 
