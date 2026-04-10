@@ -52,6 +52,13 @@ function saveUsers(users: PortalUser[]) {
   localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(users));
 }
 
+function toPortalProgramStatus(status: string): SuiteProgram["status"] {
+  if (status === "live") return "active";
+  if (status === "beta") return "beta";
+  if (status === "coming-soon") return "coming-soon";
+  return "maintenance";
+}
+
 interface InviteUserInput {
   orgId: string;
   name: string;
@@ -140,6 +147,7 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
   const { authUserId, isAuthenticated } = useAuth();
   const [organizations, setOrganizations] = useState<Organization[]>(() => loadOrganizations());
   const [users, setUsers] = useState<PortalUser[]>(() => loadUsers());
+  const [bootstrapPrograms, setBootstrapPrograms] = useState<SuiteProgram[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const hydrateUsers = useCallback(async (orgRecords: Organization[]) => {
@@ -181,7 +189,7 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
     saveUsers(merged);
   }, []);
 
-  const programs = useMemo<SuiteProgram[]>(() => {
+  const catalogSuitePrograms = useMemo<SuiteProgram[]>(() => {
     return catalogPrograms.map((program) => ({
       id: program.id,
       name: program.name,
@@ -193,16 +201,28 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
         .join(""),
       logoUrl: program.logoUrl,
       launchUrl: program.type === "external" ? program.externalUrl || `/applications/${program.id}` : program.internalRoute || `/applications/${program.id}`,
-      status:
-        program.status === "live"
-          ? "active"
-          : program.status === "beta"
-            ? "beta"
-            : program.status === "coming-soon"
-              ? "coming-soon"
-              : "maintenance",
+      status: toPortalProgramStatus(program.status),
     }));
   }, [catalogPrograms]);
+
+  const programs = useMemo<SuiteProgram[]>(() => {
+    if (bootstrapPrograms.length === 0) {
+      return catalogSuitePrograms;
+    }
+
+    if (catalogSuitePrograms.length === 0) {
+      return bootstrapPrograms;
+    }
+
+    const merged = new Map(catalogSuitePrograms.map((program) => [program.id, program]));
+    bootstrapPrograms.forEach((program) => {
+      if (!merged.has(program.id)) {
+        merged.set(program.id, program);
+      }
+    });
+
+    return Array.from(merged.values());
+  }, [catalogSuitePrograms, bootstrapPrograms]);
 
   const hydrateOrganizations = useCallback(async () => {
     setIsLoading(true);
@@ -224,15 +244,9 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
             .join(""),
           logoUrl: program.logoUrl,
           launchUrl: program.type === "external" ? program.externalUrl || `/applications/${program.id}` : program.internalRoute || `/applications/${program.id}`,
-          status:
-            program.status === "live"
-              ? "active"
-              : program.status === "beta"
-                ? "beta"
-                : program.status === "coming-soon"
-                  ? "coming-soon"
-                  : "maintenance",
+          status: toPortalProgramStatus(program.status),
         }));
+        setBootstrapPrograms(normalizedPrograms);
 
         const portalUsers: PortalUser[] = bootstrap.membership
           ? [
@@ -254,13 +268,10 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
         saveOrganizations([organization]);
         saveUsers(portalUsers);
 
-        if (normalizedPrograms.length > 0) {
-          // Keep suite catalog as source of truth, but allow portal bootstrap to pre-warm user assignments.
-          void normalizedPrograms;
-        }
-
         return;
       }
+
+      setBootstrapPrograms([]);
 
       const records = await listOrganizations();
 
@@ -292,6 +303,7 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
       const fallbackUsers = loadUsers();
       setOrganizations(fallbackOrganizations);
       setUsers(fallbackUsers);
+      setBootstrapPrograms([]);
       saveOrganizations(fallbackOrganizations);
       saveUsers(fallbackUsers);
     } finally {

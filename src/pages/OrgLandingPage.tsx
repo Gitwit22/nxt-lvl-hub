@@ -24,8 +24,8 @@ export default function OrgLandingPage() {
 
   const orgPrograms = getOrganizationPrograms(org);
   const activeUsers = users.filter((user) => user.active);
-  const currentUser = getOrgCurrentUser(org.id);
-  const visiblePrograms = currentUser ? getProgramsForUser(org, currentUser.id) : [];
+  const currentUser = getOrgCurrentUser(org.id) ?? users.find((user) => user.active) ?? users[0];
+  const visiblePrograms = currentUser ? getProgramsForUser(org, currentUser.id) : orgPrograms;
 
   return (
     <div className="space-y-6">

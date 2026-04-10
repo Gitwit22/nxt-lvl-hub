@@ -50,6 +50,10 @@ export function getOrgUsersPath(orgSlug: string) {
   return `${getOrgBasePath(orgSlug)}/users`;
 }
 
+export function getOrgOrganizationPath(orgSlug: string) {
+  return `${getOrgBasePath(orgSlug)}/organization`;
+}
+
 export function getOrgSettingsPath(orgSlug: string) {
   return `${getOrgBasePath(orgSlug)}/settings`;
 }
