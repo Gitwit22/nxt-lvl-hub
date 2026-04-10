@@ -74,6 +74,7 @@ export function getSuiteLoginUrl(returnTo?: string): string {
     console.error("[Suite Auth] Failed to construct Suite login URL", err);
     return "/";
   }
+}
 
 /**
  * Builds the Suite signup/register URL.
