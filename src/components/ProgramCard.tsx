@@ -5,11 +5,14 @@ import { ProgramLogo } from "@/components/ProgramLogo";
 import { ExternalLink, ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { getAccessToken } from "@/lib/api";
 
 interface ProgramCardProps {
   program: Program;
   compact?: boolean;
 }
+
+const SUITE_LAUNCH_HOST_HINTS = ["community-chronicle", "mission-hub"];
 
 function resolveProgramColor(color?: string) {
   if (!color) return undefined;
@@ -55,11 +58,34 @@ export function ProgramCard({ program, compact }: ProgramCardProps) {
     ? `${isHovered ? "0 0 0 1px" : "0 0 0 1px"} ${hexToRgba(resolvedGlowColor, Math.max(glowOpacity, 6))}, ${isHovered ? "0 0 36px" : "0 0 18px"} ${hexToRgba(resolvedGlowColor, Math.max(glowOpacity * 0.7, 8))}`
     : undefined;
 
+  const resolveExternalLaunchUrl = (url: string) => {
+    const token = getAccessToken();
+    if (!token) return url;
+
+    try {
+      const target = new URL(url, window.location.origin);
+      const host = target.hostname.toLowerCase();
+      const supportsSuiteLaunch = SUITE_LAUNCH_HOST_HINTS.some((hint) => host.includes(hint));
+      if (!supportsSuiteLaunch) {
+        return url;
+      }
+
+      // First-party apps consume Suite launch tokens at /launch.
+      target.pathname = "/launch";
+      if (!target.searchParams.get("token")) {
+        target.searchParams.set("token", token);
+      }
+      return target.toString();
+    } catch {
+      return url;
+    }
+  };
+
   const handleLaunch = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!isLaunchable) return;
     if (program.type === "external" && program.externalUrl) {
-      window.open(program.externalUrl, program.openInNewTab ? "_blank" : "_self");
+      window.open(resolveExternalLaunchUrl(program.externalUrl), program.openInNewTab ? "_blank" : "_self");
     } else if (program.internalRoute) {
       const route = program.internalRoute;
       const isExternal = route.startsWith("http://") || route.startsWith("https://") || (!route.startsWith("/") && route.includes("."));

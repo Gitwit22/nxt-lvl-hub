@@ -6,6 +6,9 @@ import { ProgramLogo } from "@/components/ProgramLogo";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ExternalLink, ArrowRight } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { getAccessToken } from "@/lib/api";
+
+const SUITE_LAUNCH_HOST_HINTS = ["community-chronicle", "mission-hub"];
 
 export default function ProgramDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -28,10 +31,32 @@ export default function ProgramDetailPage() {
   const isLaunchable = program.status === "live" || program.status === "beta" || program.status === "internal";
   const launchDestination = program.type === "external" ? program.externalUrl : program.internalRoute;
 
+  const resolveExternalLaunchUrl = (url: string) => {
+    const token = getAccessToken();
+    if (!token) return url;
+
+    try {
+      const target = new URL(url, window.location.origin);
+      const host = target.hostname.toLowerCase();
+      const supportsSuiteLaunch = SUITE_LAUNCH_HOST_HINTS.some((hint) => host.includes(hint));
+      if (!supportsSuiteLaunch) {
+        return url;
+      }
+
+      target.pathname = "/launch";
+      if (!target.searchParams.get("token")) {
+        target.searchParams.set("token", token);
+      }
+      return target.toString();
+    } catch {
+      return url;
+    }
+  };
+
   const handleLaunch = () => {
     if (!isLaunchable) return;
     if (program.type === "external" && program.externalUrl) {
-      window.open(program.externalUrl, program.openInNewTab ? "_blank" : "_self");
+      window.open(resolveExternalLaunchUrl(program.externalUrl), program.openInNewTab ? "_blank" : "_self");
     } else if (program.internalRoute) {
       const route = program.internalRoute;
       const isExternal = route.startsWith("http://") || route.startsWith("https://") || (!route.startsWith("/") && route.includes("."));

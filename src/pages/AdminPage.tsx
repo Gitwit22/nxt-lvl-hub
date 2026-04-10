@@ -202,6 +202,7 @@ function formatDate(value?: string) {
 function StatusPill({ status }: { status: OrganizationStatus }) {
   const map: Record<OrganizationStatus, string> = {
     active: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+    pending: "bg-blue-500/20 text-blue-200 border-blue-500/30",
     suspended: "bg-red-500/20 text-red-300 border-red-500/30",
     trial: "bg-amber-500/20 text-amber-200 border-amber-500/30",
   };
