@@ -261,8 +261,10 @@ async function apiRequest<T>(path: string, init: RequestInit = {}, _retry = true
       console.log(`[auth] refresh succeeded, retrying ${path}`);
       return apiRequest<T>(path, init, false);
     }
-    console.error(`[auth] refresh failed, clearing session`);
-    _authErrorCallback?.();
+    // Do not force global logout for every 401 from non-auth endpoints.
+    // Public pages/providers can trigger protected fetches before login, and
+    // clearing session here causes post-login redirect flicker/blink loops.
+    console.warn(`[auth] refresh failed for ${path}; preserving session state and returning 401 to caller`);
   }
 
   const text = response.status === 204 ? "" : await response.text();

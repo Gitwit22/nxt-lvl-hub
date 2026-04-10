@@ -52,7 +52,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
 
               <div className="flex items-center gap-2">
                 <Button asChild>
-                  <Link to="/site/login?returnTo=%2F">
+                  <Link to="/site/login">
                     <LogIn className="h-4 w-4" /> Sign In
                   </Link>
                 </Button>

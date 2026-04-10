@@ -45,12 +45,12 @@ function SuiteAuthPage({ mode }: { mode: AuthMode }) {
 
   const returnTo = useMemo(() => {
     const explicitReturnTo = searchParams.get("returnTo");
-    if (explicitReturnTo?.startsWith("/")) {
+    if (explicitReturnTo?.startsWith("/") && explicitReturnTo !== "/") {
       return explicitReturnTo;
     }
 
     const stateFrom = (location.state as { from?: { pathname?: string; search?: string; hash?: string } } | null)?.from;
-    if (stateFrom?.pathname) {
+    if (stateFrom?.pathname && stateFrom.pathname !== "/") {
       return `${stateFrom.pathname}${stateFrom.search || ""}${stateFrom.hash || ""}`;
     }
 
