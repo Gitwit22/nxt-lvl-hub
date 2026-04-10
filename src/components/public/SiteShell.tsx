@@ -3,6 +3,7 @@ import { Link, NavLink } from "react-router-dom";
 import { LogIn, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getSuiteLoginUrl } from "@/lib/suiteLogin";
 
 function BrandMark() {
   return (
@@ -51,10 +52,8 @@ export function SiteShell({ children }: { children: ReactNode }) {
               </div>
 
               <div className="flex items-center gap-2">
-                <Button asChild>
-                  <Link to="/login">
-                    <LogIn className="h-4 w-4" /> Login
-                  </Link>
+                <Button onClick={() => (window.location.href = getSuiteLoginUrl("/"))}>
+                  <LogIn className="h-4 w-4" /> Sign In
                 </Button>
               </div>
             </div>

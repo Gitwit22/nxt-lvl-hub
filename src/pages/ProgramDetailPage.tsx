@@ -9,6 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { getAccessToken } from "@/lib/api";
 
 const SUITE_LAUNCH_HOST_HINTS = ["community-chronicle", "mission-hub"];
+const LANDING_FIRST_HOST_HINTS = ["community-chronicle"];
 
 export default function ProgramDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -43,7 +44,8 @@ export default function ProgramDetailPage() {
         return url;
       }
 
-      target.pathname = "/launch";
+      const shouldOpenLandingFirst = LANDING_FIRST_HOST_HINTS.some((hint) => host.includes(hint));
+      target.pathname = shouldOpenLandingFirst ? "/landing" : "/launch";
       if (!target.searchParams.get("token")) {
         target.searchParams.set("token", token);
       }
