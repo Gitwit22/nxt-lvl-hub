@@ -73,6 +73,7 @@ export function ProgramCard({ program, compact }: ProgramCardProps) {
           setIsLaunching(true);
           try {
             const launchToken = await generateLaunchTokenApi(program.organizationId, hint);
+            target.pathname = "/launch";
             target.searchParams.set("token", launchToken);
             window.open(target.toString(), program.openInNewTab ? "_blank" : "_self");
           } catch {

@@ -32,6 +32,7 @@ export function OrgProgramCard({ program, orgId }: OrgProgramCardProps) {
       try {
         const launchToken = await generateLaunchTokenApi(orgId, program.programDomain);
         const url = new URL(program.launchUrl);
+        url.pathname = "/launch";
         url.searchParams.set("token", launchToken);
         window.open(url.toString(), "_blank", "noopener,noreferrer");
       } catch {
