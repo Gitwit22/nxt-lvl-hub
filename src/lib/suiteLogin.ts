@@ -27,13 +27,40 @@ function normalizeReturnPath(value?: string): string | undefined {
 /**
  * Builds the Suite login URL with app and return path context.
  * Used to redirect unauthenticated users to centralized Suite for platform_only apps.
+ * 
+ * If VITE_SUITE_URL is not configured, returns a placeholder that indicates
+ * Suite login is required (for development/testing).
  */
 export function getSuiteLoginUrl(returnTo?: string): string {
   const normalizedReturnPath = normalizeReturnPath(returnTo);
 
   if (!SUITE_URL) {
-    // Fallback: if Suite URL is not configured, stay within app
-    return "/";
+    // Development fallback: log warning and construct a likely Suite URL
+    console.warn(
+      "[Suite Auth] VITE_SUITE_URL not configured. Please set VITE_SUITE_URL in .env to enable Suite login.",
+      "Expected format: https://ntlops.com or similar."
+    );
+    
+    // Attempt to construct Suite URL based on current host
+    try {
+      const currentHost = window.location.hostname;
+      let suiteHost = SUITE_DOMAIN;
+      
+      // If running on a subdomain of SUITE_DOMAIN, redirect to root
+      if (currentHost.endsWith(`.${SUITE_DOMAIN}`) || currentHost === SUITE_DOMAIN) {
+        suiteHost = SUITE_DOMAIN;
+      }
+      
+      const url = new URL(`https://${suiteHost}/login`);
+      url.searchParams.set("next", "nxt-lvl-suites");
+      if (normalizedReturnPath) {
+        url.searchParams.set("returnTo", normalizedReturnPath);
+      }
+      return url.toString();
+    } catch (err) {
+      console.error("[Suite Auth] Failed to construct fallback Suite URL", err);
+      return "/";
+    }
   }
 
   try {
@@ -43,10 +70,10 @@ export function getSuiteLoginUrl(returnTo?: string): string {
       url.searchParams.set("returnTo", normalizedReturnPath);
     }
     return url.toString();
-  } catch {
+  } catch (err) {
+    console.error("[Suite Auth] Failed to construct Suite login URL", err);
     return "/";
   }
-}
 
 /**
  * Builds the Suite signup/register URL.

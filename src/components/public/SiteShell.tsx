@@ -52,7 +52,13 @@ export function SiteShell({ children }: { children: ReactNode }) {
               </div>
 
               <div className="flex items-center gap-2">
-                <Button onClick={() => (window.location.href = getSuiteLoginUrl("/"))}>
+                <Button 
+                  onClick={() => {
+                    const loginUrl = getSuiteLoginUrl("/");
+                    console.log("[auth] Redirecting to Suite login:", loginUrl);
+                    window.location.href = loginUrl;
+                  }}
+                >
                   <LogIn className="h-4 w-4" /> Sign In
                 </Button>
               </div>
