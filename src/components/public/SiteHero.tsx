@@ -26,10 +26,11 @@ export function SiteHero() {
 
         <div className="space-y-4">
           <div className="flex items-center gap-4">
-            <div className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-[1.5rem] border border-white/15 bg-slate-950 text-lg font-semibold text-white shadow-[0_18px_48px_rgba(15,23,42,0.4)]">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.55),_transparent_55%),linear-gradient(160deg,_rgba(37,99,235,1),_rgba(15,23,42,0.94))]" />
-              <span className="relative z-10 tracking-[0.26em]">NL</span>
-            </div>
+            <img
+              src="/logo.png"
+              alt="Nxt Lvl logo"
+              className="h-16 w-16 rounded-[1.5rem] border border-white/15 object-cover shadow-[0_18px_48px_rgba(15,23,42,0.4)]"
+            />
             <div>
               <p className="text-sm uppercase tracking-[0.28em] text-sky-100/70">Suite Platform</p>
               <h1 className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">Nxt Lvl Suites</h1>

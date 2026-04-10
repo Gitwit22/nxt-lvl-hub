@@ -24,7 +24,14 @@ function getDefaultApiBaseUrl() {
   }
 
   const host = window.location.hostname.toLowerCase();
-  if (host === "nltops.com" || host.endsWith(".nltops.com") || host.endsWith(".pages.dev")) {
+  const isSuiteHost =
+    host === "ntlops.com" ||
+    host.endsWith(".ntlops.com") ||
+    host === "nltops.com" ||
+    host.endsWith(".nltops.com") ||
+    host.endsWith(".pages.dev");
+
+  if (isSuiteHost) {
     return DEFAULT_HOSTED_API_BASE_URL;
   }
 

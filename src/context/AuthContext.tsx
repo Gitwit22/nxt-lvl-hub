@@ -150,15 +150,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    // Clear client auth state first to avoid race conditions with pending refresh timers.
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
+    setIsAuthenticated(false);
+    setMe(null);
+    setAccessToken(null);
+
     try {
       await logoutApi();
     } catch {
-      // Ignore logout errors; clear local state regardless
-    } finally {
-      setIsAuthenticated(false);
-      setMe(null);
-      setAccessToken(null);
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      // Ignore logout errors; local logout already completed.
     }
   }, []);
 

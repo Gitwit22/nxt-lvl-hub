@@ -7,8 +7,7 @@ import { cn } from "@/lib/utils";
 function BrandMark() {
   return (
     <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-white/15 bg-slate-950 text-sm font-semibold text-white shadow-[0_18px_48px_rgba(15,23,42,0.35)]">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.45),_transparent_55%),linear-gradient(160deg,_rgba(37,99,235,0.95),_rgba(15,23,42,0.92))]" />
-      <span className="relative z-10 tracking-[0.24em]">NL</span>
+      <img src="/logo.png" alt="Nxt Lvl logo" className="h-full w-full object-cover" />
     </div>
   );
 }

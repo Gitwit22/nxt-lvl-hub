@@ -18,7 +18,12 @@ function setRefreshCookie(response: Response, token: string) {
 }
 
 function clearRefreshCookie(response: Response) {
-  response.clearCookie(REFRESH_COOKIE_NAME, { path: "/api/auth" });
+  response.clearCookie(REFRESH_COOKIE_NAME, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "strict" : "lax",
+    path: "/api/auth",
+  });
 }
 
 export async function login(request: Request, response: Response) {

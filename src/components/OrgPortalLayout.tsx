@@ -99,7 +99,7 @@ export function OrgPortalLayout() {
   const handleLogout = async () => {
     try {
       await logout();
-      navigate("/login", { replace: true });
+      navigate("/", { replace: true });
       toast.success("Logged out successfully.");
     } catch (error) {
       toast.error(getErrorMessage(error));
