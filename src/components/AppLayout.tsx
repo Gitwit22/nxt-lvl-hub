@@ -3,12 +3,17 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { Outlet } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { ForcePasswordChange } from "@/components/ForcePasswordChange";
 import { Button } from "@/components/ui/button";
 import { getErrorMessage } from "@/lib/api";
 import { toast } from "sonner";
 
 export function AppLayout({ children }: { children?: React.ReactNode }) {
-  const { isPlatformAdmin, bootstrapAdmin } = useAuth();
+  const { isPlatformAdmin, bootstrapAdmin, mustChangePassword } = useAuth();
+
+  if (mustChangePassword) {
+    return <ForcePasswordChange />;
+  }
   const [isClaimingAdmin, setIsClaimingAdmin] = useState(false);
 
   const handleClaimAdmin = async () => {

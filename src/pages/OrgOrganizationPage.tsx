@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { canManageUsers, useOrgPortal } from "@/context/OrgPortalContext";
 import { OrgRole, Organization } from "@/types/orgPortal";
 import { OrgUserTable } from "@/components/OrgUserTable";
+import { TempPasswordModal } from "@/components/TempPasswordModal";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -45,6 +46,7 @@ function UsersTab({ org }: { org: Organization }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<OrgRole>(defaultInviteRole);
   const [selectedProgramIds, setSelectedProgramIds] = useState<string[]>([]);
+  const [tempPasswordData, setTempPasswordData] = useState<{ password: string; email: string } | null>(null);
 
   const orgPrograms = getOrganizationPrograms(org);
   const currentUser = getOrgCurrentUser(org.id);
@@ -69,7 +71,7 @@ function UsersTab({ org }: { org: Organization }) {
     }
 
     try {
-      await inviteUser({
+      const { tempPassword } = await inviteUser({
         orgId: org.id,
         name,
         email: normalizedEmail,
@@ -77,11 +79,11 @@ function UsersTab({ org }: { org: Organization }) {
         assignedProgramIds: selectedProgramIds,
       });
 
-      toast.success("Invite sent.");
       setName("");
       setEmail("");
       setRole(defaultInviteRole);
       setSelectedProgramIds([]);
+      setTempPasswordData({ password: tempPassword, email: normalizedEmail });
     } catch (error) {
       toast.error(getErrorMessage(error));
     }
@@ -156,6 +158,16 @@ function UsersTab({ org }: { org: Organization }) {
       <section>
         <OrgUserTable users={users} programs={orgPrograms} canManage={canManage} onUpdateUser={updateUser} />
       </section>
+
+      {tempPasswordData && (
+        <TempPasswordModal
+          open={true}
+          onClose={() => setTempPasswordData(null)}
+          tempPassword={tempPasswordData.password}
+          userEmail={tempPasswordData.email}
+          context="user"
+        />
+      )}
     </div>
   );
 }

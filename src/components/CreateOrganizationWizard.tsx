@@ -12,9 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { RESERVED_PORTAL_SUBDOMAINS } from "@/lib/orgRoutes";
-
-const ROOT_DOMAIN = "ntlops.com";
+import { RESERVED_PORTAL_SUBDOMAINS, getOrgPortalUrl } from "@/lib/orgRoutes";
 const AVAILABLE_MODULES = ["announcements", "analytics", "messaging", "support", "billing"];
 
 type WizardStep = 1 | 2 | 3 | 4 | 5;
@@ -354,8 +352,8 @@ export function CreateOrganizationWizard({
           <div className="space-y-2 md:col-span-2">
             <Label>Portal Subdomain</Label>
             <Input value={normalizedSubdomain} readOnly disabled placeholder="generated from slug" />
-            <p className="text-xs text-muted-foreground">Portal URL preview: {normalizedSubdomain || "your-org"}.{ROOT_DOMAIN}</p>
-            <p className={cn("text-xs", available ? "text-emerald-300" : "text-amber-300")}>{normalizedSubdomain ? (available ? "Subdomain available" : "Subdomain already in use") : "Enter a subdomain"}</p>
+            <p className="text-xs text-muted-foreground">Portal URL: {getOrgPortalUrl(state.slug || "org-slug")}</p>
+            <p className={cn("text-xs", available ? "text-emerald-300" : "text-amber-300")}>{normalizedSubdomain ? (available ? "Slug available" : "Slug already in use") : "Enter a slug"}</p>
           </div>
 
           <div className="space-y-2 md:col-span-2">
@@ -553,8 +551,7 @@ export function CreateOrganizationWizard({
         <div className="rounded-lg border border-border p-4">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">Organization</p>
           <p className="mt-2 font-medium">{state.name}</p>
-          <p className="text-xs text-muted-foreground">Slug: {state.slug}</p>
-          <p className="text-xs text-muted-foreground">Subdomain: {state.subdomain}.{ROOT_DOMAIN}</p>
+          <p className="text-xs text-muted-foreground">Portal URL: {getOrgPortalUrl(state.slug)}</p>
         </div>
 
         <div className="rounded-lg border border-border p-4">

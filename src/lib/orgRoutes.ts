@@ -62,12 +62,7 @@ export function getOrgSettingsPath(orgSlug: string) {
   return `${getOrgBasePath(orgSlug)}/settings`;
 }
 
-export function getOrgPortalUrl(subdomain: string) {
-  const normalized = subdomain.trim().toLowerCase();
-  return `https://${normalized}.${SUITE_DOMAIN}`;
-}
-
-export function getOrgPortalFallbackUrl(orgSlug: string) {
+export function getOrgPortalUrl(orgSlug: string) {
   return `https://${SUITE_DOMAIN}${getOrgBasePath(orgSlug)}`;
 }
 

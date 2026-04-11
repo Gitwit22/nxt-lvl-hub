@@ -20,6 +20,7 @@ interface AuthContextType {
   authUserId: string | null;
   authEmail: string | null;
   isPlatformAdmin: boolean;
+  mustChangePassword: boolean;
   login: (email: string, password: string) => Promise<MeResponse>;
   register: (email: string, password: string, setupToken?: string) => Promise<MeResponse>;
   bootstrapAdmin: (setupToken: string) => Promise<MeResponse>;
@@ -187,6 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     authUserId: me?.id ?? null,
     authEmail: me?.email ?? null,
     isPlatformAdmin: me?.isPlatformAdmin ?? false,
+    mustChangePassword: me?.mustChangePassword ?? false,
     login,
     register,
     bootstrapAdmin,

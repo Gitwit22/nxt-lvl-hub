@@ -169,6 +169,8 @@ function normalizeMeResponse(payload: unknown): MeResponse {
 
   const hasPassword =
     typeof source.hasPassword === "boolean" ? source.hasPassword : undefined;
+  const mustChangePassword =
+    typeof source.mustChangePassword === "boolean" ? source.mustChangePassword : undefined;
 
   if (Array.isArray(source.orgMemberships)) {
     return {
@@ -176,6 +178,7 @@ function normalizeMeResponse(payload: unknown): MeResponse {
       email,
       isPlatformAdmin,
       hasPassword,
+      mustChangePassword,
       orgMemberships: source.orgMemberships.map((membership) => {
         const record = isRecord(membership) ? membership : {};
 
@@ -195,6 +198,7 @@ function normalizeMeResponse(payload: unknown): MeResponse {
     email,
     isPlatformAdmin,
     hasPassword,
+    mustChangePassword,
     orgMemberships: organizationId
       ? [
           {
@@ -283,6 +287,7 @@ export interface MeResponse {
   email: string;
   isPlatformAdmin: boolean;
   hasPassword?: boolean;
+  mustChangePassword?: boolean;
   orgMemberships: Array<{
     orgId: string;
     orgName: string;
@@ -364,6 +369,13 @@ export async function changePasswordApi(currentPassword: string, newPassword: st
 
 export async function setPasswordApi(newPassword: string): Promise<void> {
   await apiRequest<void>("/api/auth/set-password", {
+    method: "POST",
+    body: JSON.stringify({ newPassword }),
+  });
+}
+
+export async function completeForceResetApi(newPassword: string): Promise<void> {
+  await apiRequest<void>("/api/auth/complete-force-reset", {
     method: "POST",
     body: JSON.stringify({ newPassword }),
   });
@@ -705,8 +717,18 @@ export function listOrganizations() {
   return apiRequest<OrganizationRecord[]>("/api/orgs");
 }
 
-export function createOrganization(payload: OrganizationMutationInput) {
-  return apiRequest<OrganizationRecord>("/api/orgs", {
+export type CreateOrganizationPayload = OrganizationMutationInput & {
+  contactUser?: { name: string; email: string };
+};
+
+export type CreateOrganizationResult = OrganizationRecord & {
+  tempPassword?: string;
+  contactUserId?: string;
+  contactUserEmail?: string;
+};
+
+export function createOrganization(payload: CreateOrganizationPayload) {
+  return apiRequest<CreateOrganizationResult>("/api/orgs", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -724,7 +746,7 @@ export function listOrgUsers(orgId: string) {
 }
 
 export function createOrgUser(orgId: string, payload: OrgUserMutationInput) {
-  return apiRequest<OrgUserRecord>(`/api/orgs/${orgId}/users`, {
+  return apiRequest<OrgUserRecord & { tempPassword?: string }>(`/api/orgs/${orgId}/users`, {
     method: "POST",
     body: JSON.stringify(payload),
   });

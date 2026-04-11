@@ -8,6 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { getErrorMessage } from "@/lib/api";
 import { toast } from "sonner";
 import { PortalBrandProvider } from "@/components/PortalBrandProvider";
+import { ForcePasswordChange } from "@/components/ForcePasswordChange";
 
 function LinkItem({ to, icon: Icon, label }: { to: string; icon: React.ComponentType<{ className?: string }>; label: string }) {
   return (
@@ -30,7 +31,7 @@ function LinkItem({ to, icon: Icon, label }: { to: string; icon: React.Component
 export function OrgPortalLayout() {
   const { orgSlug = "" } = useParams();
   const navigate = useNavigate();
-  const { logout, me } = useAuth();
+  const { logout, me, mustChangePassword } = useAuth();
   const { getOrganizationBySlug, getOrgCurrentUser } = useOrgPortal();
 
   const org = getOrganizationBySlug(orgSlug);
@@ -108,6 +109,10 @@ export function OrgPortalLayout() {
   };
 
   const portalTitle = org.portalTitle || org.name;
+
+  if (mustChangePassword) {
+    return <ForcePasswordChange />;
+  }
 
   return (
     <PortalBrandProvider organization={org}>

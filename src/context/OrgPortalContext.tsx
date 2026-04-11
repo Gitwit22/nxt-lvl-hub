@@ -65,7 +65,6 @@ interface InviteUserInput {
   email: string;
   role: OrgRole;
   assignedProgramIds: string[];
-  initialPassword?: string;
 }
 
 interface CreateOrganizationInput {
@@ -78,6 +77,7 @@ interface CreateOrganizationInput {
   phoneNumber?: string;
   industryType?: string;
   notes?: string;
+  contactUser?: { name: string; email: string };
   logoUrl?: string;
   faviconUrl?: string;
   bannerUrl?: string;
@@ -115,8 +115,8 @@ interface OrgPortalContextType {
   getOrganizationPrograms: (org: Organization) => SuiteProgram[];
   getOrgCurrentUser: (orgId: string) => PortalUser | undefined;
   getProgramsForUser: (org: Organization, userId: string) => SuiteProgram[];
-  inviteUser: (input: InviteUserInput) => Promise<void>;
-  createOrganization: (input: CreateOrganizationInput) => Promise<Organization>;
+  inviteUser: (input: InviteUserInput) => Promise<{ tempPassword: string }>;
+  createOrganization: (input: CreateOrganizationInput) => Promise<Organization & { tempPassword?: string }>;
   updateUser: (userId: string, updates: Partial<PortalUser>) => Promise<void>;
   updateOrganization: (orgId: string, updates: Partial<Organization>) => Promise<void>;
   setOrganizationPrograms: (orgId: string, assignedProgramIds: string[], assignedBundleIds: string[]) => Promise<void>;
@@ -350,7 +350,7 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
     return orgPrograms.filter((program) => userProgramSet.has(program.id));
   };
 
-  const inviteUser = async (input: InviteUserInput) => {
+  const inviteUser = async (input: InviteUserInput): Promise<{ tempPassword: string }> => {
     const nextUser: PortalUser = {
       id: `usr-${Date.now()}`,
       orgId: input.orgId,
@@ -361,16 +361,16 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
       assignedProgramIds: input.assignedProgramIds,
     };
 
-    const payload = input.initialPassword
-      ? { ...toOrgUserMutationInput(nextUser), initialPassword: input.initialPassword }
-      : toOrgUserMutationInput(nextUser);
-    const created = normalizeOrgUser(await createOrgUserRecord(input.orgId, payload));
+    const result = await createOrgUserRecord(input.orgId, toOrgUserMutationInput(nextUser));
+    const created = normalizeOrgUser(result);
 
     setUsers((prev) => {
       const next = [...prev, created];
       saveUsers(next);
       return next;
     });
+
+    return { tempPassword: result.tempPassword ?? "" };
   };
 
   const createOrganization = async (input: CreateOrganizationInput) => {
@@ -438,7 +438,12 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
       tags: input.industryType?.trim() ? [input.industryType.trim()] : [],
     };
 
-    const created = normalizeOrganization(await createOrganizationRecord(toOrganizationMutationInput(organization)));
+    const payload = {
+      ...toOrganizationMutationInput(organization),
+      ...(input.contactUser ? { contactUser: input.contactUser } : {}),
+    };
+    const result = await createOrganizationRecord(payload);
+    const created = normalizeOrganization(result);
 
     setOrganizations((prev) => {
       const next = [...prev, created];
@@ -446,7 +451,7 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
       return next;
     });
 
-    return created;
+    return { ...created, tempPassword: result.tempPassword };
   };
 
   const updateUser = async (userId: string, updates: Partial<PortalUser>) => {

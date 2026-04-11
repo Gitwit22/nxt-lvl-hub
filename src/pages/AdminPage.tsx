@@ -5,7 +5,8 @@ import { useOrgPortal } from "@/context/OrgPortalContext";
 import { getErrorMessage, uploadLogoFile } from "@/lib/api";
 import { Bundle, Organization, OrganizationStatus, PlanType, SuiteProgram } from "@/types/orgPortal";
 import { Program, CATEGORIES, ProgramStatus, ProgramType, ProgramOrigin } from "@/types/program";
-import { getOrgBasePath, getOrgPortalFallbackUrl, getOrgPortalUrl } from "@/lib/orgRoutes";
+import { getOrgBasePath, getOrgPortalUrl } from "@/lib/orgRoutes";
+import { TempPasswordModal } from "@/components/TempPasswordModal";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,6 @@ import { Check, Plus, Pencil, Trash2, Upload, Search, Eye, PauseCircle, PlayCirc
 import { toast } from "sonner";
 
 const PAGE_SIZE = 8;
-const ROOT_DOMAIN = "ntlops.com";
 
 type AdminSection = "organizations" | "programs";
 type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
@@ -35,6 +35,7 @@ type WizardState = {
   slug: string;
   contactEmail: string;
   ownerEmail: string;
+  ownerName: string;
   supportEmail: string;
   phoneNumber: string;
   industryType: string;
@@ -57,6 +58,7 @@ const DEFAULT_WIZARD_STATE: WizardState = {
   slug: "",
   contactEmail: "",
   ownerEmail: "",
+  ownerName: "",
   supportEmail: "",
   phoneNumber: "",
   industryType: "",
@@ -701,6 +703,7 @@ function OrganizationsTab() {
   const [slugLocked, setSlugLocked] = useState(false);
   const [selectedOrgId, setSelectedOrgId] = useState<string>(organizations[0]?.id ?? "");
   const [detailTab, setDetailTab] = useState<DetailTab>("overview");
+  const [orgTempPassword, setOrgTempPassword] = useState<{ password: string; email: string } | null>(null);
 
   useEffect(() => {
     if (!selectedOrgId && organizations[0]?.id) {
@@ -821,8 +824,12 @@ function OrganizationsTab() {
       ? new Date(Date.now() + wizardState.trialDays * 24 * 60 * 60 * 1000).toISOString()
       : "";
 
+    const contactUser = wizardState.ownerEmail.trim() && wizardState.ownerName.trim()
+      ? { name: wizardState.ownerName.trim(), email: wizardState.ownerEmail.trim() }
+      : undefined;
+
     try {
-      const organization = await createOrganization({
+      const result = await createOrganization({
         name: wizardState.name,
         slug: wizardState.slug,
         subdomain: wizardState.subdomain,
@@ -842,12 +849,18 @@ function OrganizationsTab() {
         status: wizardState.status,
         seatLimit: wizardState.seatLimit,
         trialEndsAt,
+        ...(contactUser ? { contactUser } : {}),
       });
 
-      toast.success("Organization created");
-      setSelectedOrgId(organization.id);
+      setSelectedOrgId(result.id);
       setWizardOpen(false);
       setWizardStep(1);
+
+      if (result.tempPassword && result.contactUserEmail) {
+        setOrgTempPassword({ password: result.tempPassword, email: result.contactUserEmail });
+      } else {
+        toast.success("Organization created");
+      }
     } catch (error) {
       toast.error(getErrorMessage(error));
     }
@@ -911,6 +924,11 @@ function OrganizationsTab() {
           </div>
 
           <div className="space-y-2">
+            <Label>Owner Name <span className="text-muted-foreground/60 font-normal text-xs">(creates their account with a temp password)</span></Label>
+            <Input value={wizardState.ownerName} onChange={(event) => updateWizard("ownerName", event.target.value)} placeholder="Jane Smith" />
+          </div>
+
+          <div className="space-y-2">
             <Label>Support Email</Label>
             <Input value={wizardState.supportEmail} onChange={(event) => updateWizard("supportEmail", event.target.value)} placeholder="support@organization.org" />
           </div>
@@ -940,13 +958,10 @@ function OrganizationsTab() {
               onChange={(event) => updateWizard("subdomain", subdomainify(event.target.value))}
               placeholder="miroundtable"
             />
-            <p className="text-xs text-muted-foreground">Full URL preview: {normalized || "your-org"}.{ROOT_DOMAIN}</p>
+            <p className="text-xs text-muted-foreground">Portal URL: {getOrgPortalUrl(wizardState.slug || "org-slug")}</p>
             <p className={cn("text-xs", available ? "text-emerald-300" : "text-amber-300")}>
-              {normalized ? (available ? "Subdomain available" : "Subdomain already in use") : "Enter a subdomain to validate"}
+              {normalized ? (available ? "Slug available" : "Slug already in use") : "Enter a subdomain to validate"}
             </p>
-          </div>
-          <div className="rounded-lg border border-border p-3 text-xs text-muted-foreground">
-            Routing supported: {getOrgPortalUrl(normalized || "your-org")} and {getOrgPortalFallbackUrl(wizardState.slug || "org-slug")}
           </div>
         </div>
       );
@@ -1102,10 +1117,18 @@ function OrganizationsTab() {
         </div>
 
         <div className="rounded-lg border border-border p-4">
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">Domain</p>
-          <p className="mt-2">{wizardState.subdomain}.{ROOT_DOMAIN}</p>
-          <p className="text-xs text-muted-foreground">Fallback: /org/{wizardState.slug}</p>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">Portal URL</p>
+          <p className="mt-2">{getOrgPortalUrl(wizardState.slug)}</p>
         </div>
+
+        {wizardState.ownerEmail.trim() && wizardState.ownerName.trim() && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+            <p className="text-xs uppercase tracking-wider text-amber-400 font-medium">Owner Account</p>
+            <p className="mt-2 text-sm font-medium">{wizardState.ownerName}</p>
+            <p className="text-xs text-muted-foreground">{wizardState.ownerEmail}</p>
+            <p className="mt-1 text-xs text-amber-400">A temporary password will be generated. Copy it from the next screen and share it securely.</p>
+          </div>
+        )}
 
         <div className="rounded-lg border border-border p-4">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">Programs & Bundles</p>
@@ -1190,7 +1213,7 @@ function OrganizationsTab() {
           <TableHeader>
             <TableRow>
               <TableHead>Organization</TableHead>
-              <TableHead>Subdomain</TableHead>
+              <TableHead>Portal URL</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Assigned Bundle</TableHead>
               <TableHead>Users</TableHead>
@@ -1219,10 +1242,7 @@ function OrganizationsTab() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="text-xs">
-                      <p className="font-medium">{organization.subdomain}.{ROOT_DOMAIN}</p>
-                      <p className="text-muted-foreground">/org/{organization.slug}</p>
-                    </div>
+                    <div className="text-xs font-medium">{getOrgPortalUrl(organization.slug)}</div>
                   </TableCell>
                   <TableCell><StatusPill status={organization.status} /></TableCell>
                   <TableCell>{mainBundle?.name || "Custom"}</TableCell>
@@ -1271,7 +1291,7 @@ function OrganizationsTab() {
               <div>
                 <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Organization Detail</p>
                 <h3 className="text-lg font-semibold">{selectedOrg.name}</h3>
-                <p className="text-xs text-muted-foreground">{selectedOrg.subdomain}.{ROOT_DOMAIN}</p>
+                <p className="text-xs text-muted-foreground">{getOrgPortalUrl(selectedOrg.slug)}</p>
               </div>
             </div>
 
@@ -1300,9 +1320,8 @@ function OrganizationsTab() {
                   <p className="text-xs text-muted-foreground">Plan: {selectedOrg.planType}</p>
                 </article>
                 <article className="rounded-lg border border-border p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Domain</p>
-                  <p className="mt-2 font-medium">{selectedOrg.subdomain}.{ROOT_DOMAIN}</p>
-                  <p className="text-xs text-muted-foreground">{getOrgPortalFallbackUrl(selectedOrg.slug)}</p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Portal URL</p>
+                  <p className="mt-2 font-medium text-xs break-all">{getOrgPortalUrl(selectedOrg.slug)}</p>
                 </article>
                 <article className="rounded-lg border border-border p-4">
                   <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Users</p>
@@ -1358,7 +1377,7 @@ function OrganizationsTab() {
                 key={`${selectedOrg.id}-domain`}
                 org={selectedOrg}
                 isSubdomainAvailable={isSubdomainAvailable}
-                onSave={(subdomain) => updateOrganization(selectedOrg.id, { subdomain })}
+                onSave={async () => undefined}
               />
             </TabsContent>
 
@@ -1395,6 +1414,16 @@ function OrganizationsTab() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {orgTempPassword && (
+        <TempPasswordModal
+          open={true}
+          onClose={() => setOrgTempPassword(null)}
+          tempPassword={orgTempPassword.password}
+          userEmail={orgTempPassword.email}
+          context="org"
+        />
+      )}
     </div>
   );
 }
@@ -1696,57 +1725,29 @@ function BrandingPanel({ org, onSave }: { org: Organization; onSave: (updates: P
 
 function DomainPanel({
   org,
-  isSubdomainAvailable,
-  onSave,
 }: {
   org: Organization;
   isSubdomainAvailable: (subdomain: string, exceptOrgId?: string) => boolean;
   onSave: (subdomain: string) => Promise<void>;
 }) {
-  const [subdomain, setSubdomain] = useState(org.subdomain);
-  const normalized = subdomainify(subdomain);
-  const available = normalized === org.subdomain || isSubdomainAvailable(normalized, org.id);
+  const portalUrl = getOrgPortalUrl(org.slug);
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label>Subdomain</Label>
-          <Input value={subdomain} onChange={(event) => setSubdomain(subdomainify(event.target.value))} />
-          <p className={cn("text-xs", available ? "text-emerald-300" : "text-red-300")}>
-            {available ? "Subdomain available" : "Subdomain already in use"}
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Full URL</Label>
-          <div className="rounded-md border border-border px-3 py-2 text-sm">{normalized || "org"}.{ROOT_DOMAIN}</div>
-        </div>
+      <div className="rounded-lg border border-border p-4 space-y-2">
+        <p className="text-xs uppercase tracking-wider text-muted-foreground">Canonical Portal URL</p>
+        <div className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-sm font-mono break-all">{portalUrl}</div>
+        <p className="text-xs text-muted-foreground">This is the direct link for this organization's portal. Share it with org admins and members.</p>
       </div>
 
-      <div className="rounded-lg border border-border p-4 text-sm">
-        <p className="font-medium">Fallback Route</p>
-        <p className="text-muted-foreground">/org/{org.slug}</p>
+      <div className="rounded-lg border border-border p-4 text-sm space-y-1">
+        <p className="font-medium">Slug</p>
+        <p className="text-muted-foreground font-mono">{org.slug}</p>
+        <p className="text-xs text-muted-foreground mt-1">To change the slug, update it in the Settings tab — the portal URL updates automatically.</p>
       </div>
 
       <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-        Custom domain support is prepared for future release. Example: portal.organization.org
-      </div>
-
-      <div className="flex justify-end">
-        <Button
-          disabled={!normalized || !available}
-          onClick={async () => {
-            try {
-              await onSave(normalized);
-              toast.success("Domain settings updated");
-            } catch (error) {
-              toast.error(getErrorMessage(error));
-            }
-          }}
-        >
-          <Globe className="h-4 w-4" /> Save Domain
-        </Button>
+        Custom domain support is prepared for a future release. Example: portal.organization.org
       </div>
     </div>
   );
