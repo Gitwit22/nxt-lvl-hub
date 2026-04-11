@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom";
+import { NavLink, Navigate, Outlet, useNavigate, useParams } from "react-router-dom";
 import { Building2, Grid2X2, LayoutGrid, LogOut, Settings, UserCircle } from "lucide-react";
 import { useOrgPortal, canManageUsers } from "@/context/OrgPortalContext";
 import { getOrgAccountPath, getOrgBasePath, getOrgOrganizationPath, getOrgProgramsPath } from "@/lib/orgRoutes";
@@ -9,6 +9,23 @@ import { getErrorMessage } from "@/lib/api";
 import { toast } from "sonner";
 import { PortalBrandProvider } from "@/components/PortalBrandProvider";
 import { ForcePasswordChange } from "@/components/ForcePasswordChange";
+
+// Known domain suffixes that may accidentally appear in a stored slug
+const DOMAIN_SUFFIXES = [".ntlops.com", ".nltops.com", ".ntlops.co", ".ntlopps.com"];
+
+/**
+ * Extract just the subdomain portion if orgSlug looks like a full domain name.
+ * e.g. "timeflow.ntlops.com" → "timeflow"
+ */
+function extractSubdomainFromSlug(slug: string): string {
+  const lower = slug.toLowerCase();
+  for (const suffix of DOMAIN_SUFFIXES) {
+    if (lower.endsWith(suffix)) {
+      return lower.slice(0, -suffix.length);
+    }
+  }
+  return slug;
+}
 
 function LinkItem({ to, icon: Icon, label }: { to: string; icon: React.ComponentType<{ className?: string }>; label: string }) {
   return (
@@ -32,9 +49,28 @@ export function OrgPortalLayout() {
   const { orgSlug = "" } = useParams();
   const navigate = useNavigate();
   const { logout, me, mustChangePassword } = useAuth();
-  const { getOrganizationBySlug, getOrgCurrentUser } = useOrgPortal();
+  const { getOrganizationBySlug, getOrganizationBySubdomain, getOrgCurrentUser } = useOrgPortal();
 
-  const org = getOrganizationBySlug(orgSlug);
+  // Primary lookup: exact slug match
+  let org = getOrganizationBySlug(orgSlug);
+
+  // Fallback 1: the URL slug contains a domain suffix (e.g. "timeflow.ntlops.com")
+  // Strip the suffix and try again as a subdomain lookup
+  if (!org && orgSlug.includes(".")) {
+    const extracted = extractSubdomainFromSlug(orgSlug);
+    // Try slug match on the extracted part first, then subdomain match
+    org = getOrganizationBySlug(extracted) ?? getOrganizationBySubdomain(extracted);
+  }
+
+  // Fallback 2: slug was stored with a domain suffix — try subdomain match on the full slug
+  if (!org) {
+    org = getOrganizationBySubdomain(orgSlug);
+  }
+
+  // If we found an org but the URL slug doesn't match its canonical slug, redirect
+  if (org && org.slug !== orgSlug) {
+    return <Navigate to={getOrgBasePath(org.slug)} replace />;
+  }
 
   if (!org) {
     return (

@@ -6,10 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Screw } from "@/components/Screw";
 import { useAuth } from "@/context/AuthContext";
 import { normalizeInternalLaunchUrl, slugifyAppName } from "@/lib/appCatalog";
-import { getAccessToken } from "@/lib/api";
-
-const SUITE_LAUNCH_HOST_HINTS = ["community-chronicle", "mission-hub"];
-const LANDING_FIRST_HOST_HINTS: string[] = [];
 
 export default function AppWorkspacePage() {
   const { appSlug = "" } = useParams();
@@ -29,28 +25,6 @@ export default function AppWorkspacePage() {
     [appSlug, isPlatformAdmin, programs],
   );
 
-  const resolveExternalLaunchUrl = (url: string) => {
-    const token = getAccessToken();
-    if (!token) return url;
-
-    try {
-      const target = new URL(url, window.location.origin);
-      const host = target.hostname.toLowerCase();
-      const supportsSuiteLaunch = SUITE_LAUNCH_HOST_HINTS.some((hint) => host.includes(hint));
-      if (!supportsSuiteLaunch) {
-        return url;
-      }
-
-      const shouldOpenLandingFirst = LANDING_FIRST_HOST_HINTS.some((hint) => host.includes(hint));
-      target.pathname = shouldOpenLandingFirst ? "/landing" : "/launch";
-      if (!target.searchParams.get("token")) {
-        target.searchParams.set("token", token);
-      }
-      return target.toString();
-    } catch {
-      return url;
-    }
-  };
 
   if (!program) {
     return (
@@ -99,7 +73,7 @@ export default function AppWorkspacePage() {
               Review Launch Mapping
             </Button>
             {program.externalUrl && (
-              <Button variant="outline" onClick={() => window.open(resolveExternalLaunchUrl(program.externalUrl), program.openInNewTab ? "_blank" : "_self")}>
+              <Button variant="outline" onClick={() => window.open(program.externalUrl, program.openInNewTab ? "_blank" : "_self")}>
                 Open External Version <ExternalLink className="h-4 w-4" />
               </Button>
             )}

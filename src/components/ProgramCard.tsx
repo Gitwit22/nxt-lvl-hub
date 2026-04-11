@@ -5,14 +5,11 @@ import { ProgramLogo } from "@/components/ProgramLogo";
 import { ExternalLink, ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { generateLaunchTokenApi } from "@/lib/api";
 
 interface ProgramCardProps {
   program: Program;
   compact?: boolean;
 }
-
-const SUITE_LAUNCH_HOST_HINTS = ["community-chronicle", "mission-hub"];
 
 function resolveProgramColor(color?: string) {
   if (!color) return undefined;
@@ -59,33 +56,11 @@ export function ProgramCard({ program, compact }: ProgramCardProps) {
     ? `${isHovered ? "0 0 0 1px" : "0 0 0 1px"} ${hexToRgba(resolvedGlowColor, Math.max(glowOpacity, 6))}, ${isHovered ? "0 0 36px" : "0 0 18px"} ${hexToRgba(resolvedGlowColor, Math.max(glowOpacity * 0.7, 8))}`
     : undefined;
 
-  const handleLaunch = async (e: React.MouseEvent) => {
+  const handleLaunch = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!isLaunchable || isLaunching) return;
 
     if (program.type === "external" && program.externalUrl) {
-      try {
-        const target = new URL(program.externalUrl, window.location.origin);
-        const host = target.hostname.toLowerCase();
-        const hint = SUITE_LAUNCH_HOST_HINTS.find((h) => host.includes(h));
-
-        if (hint) {
-          setIsLaunching(true);
-          try {
-            const launchToken = await generateLaunchTokenApi(program.organizationId, hint);
-            target.pathname = "/launch";
-            target.searchParams.set("token", launchToken);
-            window.open(target.toString(), program.openInNewTab ? "_blank" : "_self");
-          } catch {
-            window.open(program.externalUrl, program.openInNewTab ? "_blank" : "_self");
-          } finally {
-            setIsLaunching(false);
-          }
-          return;
-        }
-      } catch {
-        // URL parse failed — fall through to plain open
-      }
       window.open(program.externalUrl, program.openInNewTab ? "_blank" : "_self");
       return;
     }
