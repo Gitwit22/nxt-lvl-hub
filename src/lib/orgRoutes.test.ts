@@ -36,6 +36,18 @@ describe("resolveOrgSlugFromHost", () => {
     expect(resolveOrgSlugFromHost("acme.ntlops.com", organizations)).toBe("acme");
   });
 
+  it("resolves the route slug even when it differs from the hostname subdomain", () => {
+    expect(
+      resolveOrgSlugFromHost("miroundtable.ntlops.com", [
+        {
+          ...organizations[0],
+          slug: "mi-roundtable",
+          subdomain: "miroundtable",
+        },
+      ]),
+    ).toBe("mi-roundtable");
+  });
+
   it("returns undefined for unknown hosts", () => {
     expect(resolveOrgSlugFromHost("example.com", organizations)).toBeUndefined();
   });

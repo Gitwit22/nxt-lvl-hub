@@ -167,11 +167,15 @@ function normalizeMeResponse(payload: unknown): MeResponse {
     role === "org_admin" ||
     COMPAT_PLATFORM_ADMIN_EMAILS.has(email.toLowerCase());
 
+  const hasPassword =
+    typeof source.hasPassword === "boolean" ? source.hasPassword : undefined;
+
   if (Array.isArray(source.orgMemberships)) {
     return {
       id,
       email,
       isPlatformAdmin,
+      hasPassword,
       orgMemberships: source.orgMemberships.map((membership) => {
         const record = isRecord(membership) ? membership : {};
 
@@ -190,6 +194,7 @@ function normalizeMeResponse(payload: unknown): MeResponse {
     id,
     email,
     isPlatformAdmin,
+    hasPassword,
     orgMemberships: organizationId
       ? [
           {
@@ -277,6 +282,7 @@ export interface MeResponse {
   id: string;
   email: string;
   isPlatformAdmin: boolean;
+  hasPassword?: boolean;
   orgMemberships: Array<{
     orgId: string;
     orgName: string;
@@ -353,6 +359,13 @@ export async function changePasswordApi(currentPassword: string, newPassword: st
   await apiRequest<void>("/api/auth/change-password", {
     method: "POST",
     body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}
+
+export async function setPasswordApi(newPassword: string): Promise<void> {
+  await apiRequest<void>("/api/auth/set-password", {
+    method: "POST",
+    body: JSON.stringify({ newPassword }),
   });
 }
 

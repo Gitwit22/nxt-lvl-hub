@@ -9,7 +9,7 @@ import { ProgramProvider } from "@/context/ProgramContext";
 import { OrgPortalLayout } from "@/components/OrgPortalLayout";
 import { AppLayout } from "@/components/AppLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { getOrganizationSlugFromHost } from "@/lib/orgRoutes";
+import { getOrganizationSlugFromHost, resolveOrgSlugFromHost } from "@/lib/orgRoutes";
 import { useAuth } from "@/context/AuthContext";
 import { useOrgPortal } from "@/context/OrgPortalContext";
 import PublicHomePage from "@/pages/PublicHomePage";
@@ -30,7 +30,7 @@ import NotFound from "@/pages/NotFound";
 const queryClient = new QueryClient();
 
 function RootResolver() {
-  const { isLoading } = useOrgPortal();
+  const { isLoading, organizations } = useOrgPortal();
   const { isAuthenticated, isInitializing, isPlatformAdmin } = useAuth();
 
   if (isInitializing || isLoading) {
@@ -44,7 +44,7 @@ function RootResolver() {
     );
   }
 
-  const subdomainOrgSlug = getOrganizationSlugFromHost(window.location.hostname);
+  const subdomainOrgSlug = resolveOrgSlugFromHost(window.location.hostname, organizations);
 
   if (subdomainOrgSlug) {
     return <Navigate to={`/org/${subdomainOrgSlug}`} replace />;
@@ -61,6 +61,30 @@ function RootResolver() {
   return <Navigate to="/home" replace />;
 }
 
+function HomeEntry() {
+  const { isLoading, organizations } = useOrgPortal();
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          Loading workspace...
+        </div>
+      </div>
+    );
+  }
+
+  const subdomain = getOrganizationSlugFromHost(window.location.hostname);
+  const orgSlug = resolveOrgSlugFromHost(window.location.hostname, organizations);
+
+  if (subdomain && orgSlug) {
+    return <Navigate to={`/org/${orgSlug}`} replace />;
+  }
+
+  return <PublicHomePage />;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -71,7 +95,7 @@ const App = () => (
             <Sonner />
             <BrowserRouter>
               <Routes>
-                <Route path="/" element={<PublicHomePage />} />
+                <Route path="/" element={<HomeEntry />} />
                 <Route path="/site/login" element={<PublicHomePage />} />
                 <Route path="/site/create-account" element={<PublicHomePage />} />
                 <Route path="/apps" element={<PublicAppsPage />} />

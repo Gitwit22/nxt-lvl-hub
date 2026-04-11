@@ -93,7 +93,7 @@ export function OrgPortalLayout() {
     { to: getOrgBasePath(org.slug), icon: Grid2X2, label: "Overview", show: true },
     { to: getOrgProgramsPath(org.slug), icon: LayoutGrid, label: "Programs", show: true },
     { to: getOrgAccountPath(org.slug), icon: UserCircle, label: "Account", show: true },
-    { to: getOrgOrganizationPath(org.slug), icon: Settings, label: "Settings", show: adminView },
+    { to: getOrgOrganizationPath(org.slug), icon: Settings, label: "Organization", show: adminView },
   ].filter((item) => item.show);
 
   const handleLogout = async () => {
