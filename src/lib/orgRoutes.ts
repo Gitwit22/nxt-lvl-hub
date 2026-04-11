@@ -54,6 +54,10 @@ export function getOrgOrganizationPath(orgSlug: string) {
   return `${getOrgBasePath(orgSlug)}/organization`;
 }
 
+export function getOrgAccountPath(orgSlug: string) {
+  return `${getOrgBasePath(orgSlug)}/account`;
+}
+
 export function getOrgSettingsPath(orgSlug: string) {
   return `${getOrgBasePath(orgSlug)}/settings`;
 }

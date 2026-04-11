@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom";
-import { Building2, Grid2X2, LayoutGrid, LogOut, Users } from "lucide-react";
+import { Building2, Grid2X2, LayoutGrid, LogOut, Settings, UserCircle } from "lucide-react";
 import { useOrgPortal, canManageUsers } from "@/context/OrgPortalContext";
-import { getOrgBasePath, getOrgOrganizationPath, getOrgProgramsPath } from "@/lib/orgRoutes";
+import { getOrgAccountPath, getOrgBasePath, getOrgOrganizationPath, getOrgProgramsPath } from "@/lib/orgRoutes";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
@@ -92,7 +92,8 @@ export function OrgPortalLayout() {
   const navItems = [
     { to: getOrgBasePath(org.slug), icon: Grid2X2, label: "Overview", show: true },
     { to: getOrgProgramsPath(org.slug), icon: LayoutGrid, label: "Programs", show: true },
-    { to: getOrgOrganizationPath(org.slug), icon: Users, label: "Organization", show: adminView },
+    { to: getOrgAccountPath(org.slug), icon: UserCircle, label: "Account", show: true },
+    { to: getOrgOrganizationPath(org.slug), icon: Settings, label: "Settings", show: adminView },
   ].filter((item) => item.show);
 
   const handleLogout = async () => {

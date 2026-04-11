@@ -22,8 +22,7 @@ import AboutPage from "@/pages/AboutPage";
 import AdminPage from "@/pages/AdminPage";
 import OrgLandingPage from "@/pages/OrgLandingPage";
 import OrgProgramsPage from "@/pages/OrgProgramsPage";
-import OrgUsersPage from "@/pages/OrgUsersPage";
-import OrgSettingsPage from "@/pages/OrgSettingsPage";
+import OrgAccountPage from "@/pages/OrgAccountPage";
 import OrgOrganizationPage from "@/pages/OrgOrganizationPage";
 import AppWorkspacePage from "@/pages/AppWorkspacePage";
 import NotFound from "@/pages/NotFound";
@@ -105,9 +104,8 @@ const App = () => (
                   <Route path="/org/:orgSlug" element={<OrgPortalLayout />}>
                     <Route index element={<OrgLandingPage />} />
                     <Route path="programs" element={<OrgProgramsPage />} />
+                    <Route path="account" element={<OrgAccountPage />} />
                     <Route path="organization" element={<OrgOrganizationPage />} />
-                    <Route path="users" element={<OrgUsersPage />} />
-                    <Route path="settings" element={<OrgSettingsPage />} />
                   </Route>
                 </Route>
 
