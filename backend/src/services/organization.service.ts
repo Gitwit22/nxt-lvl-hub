@@ -182,7 +182,8 @@ export class OrganizationService {
       throw new AppError("That subdomain is already in use.", 409);
     }
 
-    if (isReservedPortalSubdomain(validated.slug) || isReservedPortalSubdomain(validated.subdomain)) {
+    const nextSlug = validated.slug ?? current.slug;
+    if (isReservedPortalSubdomain(nextSlug) || isReservedPortalSubdomain(validated.subdomain)) {
       throw new AppError("That subdomain is reserved and cannot be used.", 409);
     }
 

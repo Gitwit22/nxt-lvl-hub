@@ -25,6 +25,19 @@ export const REFRESH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
 // Pre-hashed so bcrypt.compare still runs its full work factor.
 const DUMMY_HASH = "$2b$12$invalidhashXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
 
+function hasPassword(user: Pick<AuthUserRecord, "passwordHash">) {
+  return typeof user.passwordHash === "string" && user.passwordHash.length > 0;
+}
+
+function mustChangePassword(user: Partial<Pick<AuthUserRecord, "mustChangePassword">>) {
+  return user.mustChangePassword === true;
+}
+
+function generateTemporaryPassword() {
+  const value = crypto.randomBytes(4).toString("hex").toUpperCase();
+  return `${value.slice(0, 4)}-${value.slice(4)}`;
+}
+
 export class AuthService {
   async hasPlatformAdmin(partition: string): Promise<boolean> {
     const users = await authUserRepository.list(partition);
@@ -54,6 +67,7 @@ export class AuthService {
       id: `auth-${crypto.randomUUID()}`,
       email,
       passwordHash,
+      mustChangePassword: false,
       isPlatformAdmin: input.isPlatformAdmin === true,
       createdAt: now,
       updatedAt: now,
@@ -164,6 +178,8 @@ export class AuthService {
           id: user.id,
           email: user.email,
           isPlatformAdmin: false,
+          hasPassword: true,
+          mustChangePassword: false,
           orgMemberships,
         };
       }
@@ -194,7 +210,73 @@ export class AuthService {
       id: user.id,
       email: user.email,
       isPlatformAdmin: user.isPlatformAdmin,
+      hasPassword: hasPassword(user),
+      mustChangePassword: mustChangePassword(user),
       orgMemberships,
+    };
+  }
+
+  async setPassword(authUserId: string, partition: string, newPassword: string) {
+    const user = await authUserRepository.findById(partition, authUserId);
+    if (!user || user.deletedAt) {
+      throw new AppError("Account not found.", 401);
+    }
+
+    const nextHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+    const updated = await authUserRepository.update(partition, authUserId, (current) => ({
+      ...current,
+      passwordHash: nextHash,
+      mustChangePassword: false,
+      updatedAt: new Date().toISOString(),
+    }));
+
+    if (!updated) {
+      throw new AppError("Account not found.", 401);
+    }
+  }
+
+  async changePassword(authUserId: string, partition: string, currentPassword: string, newPassword: string) {
+    const user = await authUserRepository.findById(partition, authUserId);
+    if (!user || user.deletedAt) {
+      throw new AppError("Account not found.", 401);
+    }
+
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash || DUMMY_HASH);
+    if (!valid) {
+      throw new AppError("Current password is incorrect.", 401);
+    }
+
+    await this.setPassword(authUserId, partition, newPassword);
+  }
+
+  async completeForceReset(authUserId: string, partition: string, newPassword: string) {
+    await this.setPassword(authUserId, partition, newPassword);
+  }
+
+  async resetUserPasswordByAdmin(partition: string, targetAuthUserId: string) {
+    const target = await authUserRepository.findById(partition, targetAuthUserId);
+    if (!target || target.deletedAt) {
+      throw new AppError("Target account not found.", 404);
+    }
+
+    const tempPassword = generateTemporaryPassword();
+    const passwordHash = await bcrypt.hash(tempPassword, BCRYPT_ROUNDS);
+
+    const updated = await authUserRepository.update(partition, targetAuthUserId, (current) => ({
+      ...current,
+      passwordHash,
+      mustChangePassword: true,
+      updatedAt: new Date().toISOString(),
+    }));
+
+    if (!updated) {
+      throw new AppError("Target account not found.", 404);
+    }
+
+    return {
+      tempPassword,
+      email: target.email,
+      authUserId: target.id,
     };
   }
 

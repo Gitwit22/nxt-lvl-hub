@@ -2,6 +2,8 @@ import { Router } from "express";
 import {
   createOrgUser,
   listOrgUsers,
+  removeOrgUser,
+  resetOrgUserPassword,
   updateOrgUser,
 } from "../controllers/org-user.controller.js";
 import {
@@ -25,6 +27,8 @@ import {
 import {
   createOrgUserSchema,
   listOrgUsersSchema,
+  removeOrgUserSchema,
+  resetOrgUserPasswordSchema,
   updateOrgUserSchema,
 } from "../validators/org-user.validators.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -61,4 +65,18 @@ organizationRouter.put(
   roleCheckMiddleware(["super_admin", "org_admin"]),
   validateRequest(updateOrgUserSchema),
   asyncHandler(updateOrgUser),
+);
+organizationRouter.delete(
+  "/orgs/:orgId/users/:userId",
+  orgAccessMiddleware,
+  roleCheckMiddleware(["super_admin", "org_admin"]),
+  validateRequest(removeOrgUserSchema),
+  asyncHandler(removeOrgUser),
+);
+organizationRouter.post(
+  "/orgs/:orgId/users/:userId/reset-password",
+  orgAccessMiddleware,
+  roleCheckMiddleware(["super_admin", "org_admin"]),
+  validateRequest(resetOrgUserPasswordSchema),
+  asyncHandler(resetOrgUserPassword),
 );

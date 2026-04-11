@@ -20,3 +20,16 @@ export const bootstrapAdminSchema = z.object({
     setupToken: z.string().min(1, "Setup token is required."),
   }),
 });
+
+export const setPasswordSchema = z.object({
+  body: z.object({
+    newPassword: z.string().min(8, "Password must be at least 8 characters."),
+  }),
+});
+
+export const changePasswordSchema = z.object({
+  body: z.object({
+    currentPassword: z.string().min(1, "Current password is required."),
+    newPassword: z.string().min(8, "Password must be at least 8 characters."),
+  }),
+});

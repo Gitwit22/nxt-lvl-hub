@@ -444,6 +444,27 @@ export type OrganizationMutationInput = Omit<OrganizationRecord, "createdAt" | "
 };
 export type OrgUserMutationInput = Omit<OrgUserRecord, "createdAt" | "updatedAt" | "deletedAt">;
 
+export type CreateOrgUserPayload = {
+  name: string;
+  email: string;
+  role: PortalUser["role"];
+  assignedProgramIds?: string[];
+  active?: boolean;
+};
+
+export type CreateOrgUserResult = OrgUserRecord & {
+  tempPassword?: string;
+  passwordWasGenerated?: boolean;
+  existingUser?: boolean;
+};
+
+export type ResetOrgUserPasswordResult = {
+  userId: string;
+  email: string;
+  tempPassword: string;
+  mustChangePassword: boolean;
+};
+
 export function normalizeProgram(record: ProgramRecord): Program {
   const source = record as ProgramRecord & { key?: string; routePrefix?: string };
   const { deletedAt: _deletedAt, ...program } = source;
@@ -745,8 +766,8 @@ export function listOrgUsers(orgId: string) {
   return apiRequest<OrgUserRecord[]>(`/api/orgs/${orgId}/users`);
 }
 
-export function createOrgUser(orgId: string, payload: OrgUserMutationInput) {
-  return apiRequest<OrgUserRecord & { tempPassword?: string }>(`/api/orgs/${orgId}/users`, {
+export function createOrgUser(orgId: string, payload: CreateOrgUserPayload) {
+  return apiRequest<CreateOrgUserResult>(`/api/orgs/${orgId}/users`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -756,6 +777,18 @@ export function updateOrgUser(orgId: string, userId: string, payload: Partial<Or
   return apiRequest<OrgUserRecord>(`/api/orgs/${orgId}/users/${userId}`, {
     method: "PUT",
     body: JSON.stringify(payload),
+  });
+}
+
+export function removeOrgUser(orgId: string, userId: string) {
+  return apiRequest<OrgUserRecord>(`/api/orgs/${orgId}/users/${userId}`, {
+    method: "DELETE",
+  });
+}
+
+export function resetOrgUserPassword(orgId: string, userId: string) {
+  return apiRequest<ResetOrgUserPasswordResult>(`/api/orgs/${orgId}/users/${userId}/reset-password`, {
+    method: "POST",
   });
 }
 

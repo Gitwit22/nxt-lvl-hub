@@ -110,3 +110,46 @@ export async function bootstrapAdmin(request: Request, response: Response) {
   setRefreshCookie(response, refreshToken);
   return sendSuccess(response, tokens, "Platform admin access granted.");
 }
+
+export async function setPassword(request: Request, response: Response) {
+  const authUser = request.authUser!;
+  const { newPassword } = request.body as { newPassword: string };
+
+  if (!newPassword || newPassword.length < 8) {
+    throw new AppError("Password must be at least 8 characters.", 400);
+  }
+
+  await authService.setPassword(authUser.id, authUser.partition, newPassword);
+  return sendSuccess(response, null, "Password set.");
+}
+
+export async function changePassword(request: Request, response: Response) {
+  const authUser = request.authUser!;
+  const { currentPassword, newPassword } = request.body as {
+    currentPassword: string;
+    newPassword: string;
+  };
+
+  if (!currentPassword || currentPassword.length < 1) {
+    throw new AppError("Current password is required.", 400);
+  }
+
+  if (!newPassword || newPassword.length < 8) {
+    throw new AppError("Password must be at least 8 characters.", 400);
+  }
+
+  await authService.changePassword(authUser.id, authUser.partition, currentPassword, newPassword);
+  return sendSuccess(response, null, "Password updated.");
+}
+
+export async function completeForceReset(request: Request, response: Response) {
+  const authUser = request.authUser!;
+  const { newPassword } = request.body as { newPassword: string };
+
+  if (!newPassword || newPassword.length < 8) {
+    throw new AppError("Password must be at least 8 characters.", 400);
+  }
+
+  await authService.completeForceReset(authUser.id, authUser.partition, newPassword);
+  return sendSuccess(response, null, "Password reset complete.");
+}

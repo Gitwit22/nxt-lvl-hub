@@ -85,7 +85,7 @@ export default function OrgLandingPage() {
         </div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {visiblePrograms.map((program) => (
-            <OrgProgramCard key={program.id} program={program} />
+            <OrgProgramCard key={program.id} program={program} orgId={org.id} />
           ))}
           {visiblePrograms.length === 0 && (
             <div className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">

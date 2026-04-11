@@ -18,9 +18,23 @@ export async function listOrgUsers(request: Request, response: Response) {
 export async function createOrgUser(request: Request, response: Response) {
   const partitionKey = getRequestPartition(request);
   const orgId = getRouteId(request.params.orgId);
-  const user = await orgUserService.create(partitionKey, orgId, request.body);
+  const actor = request.authUser!;
+  const result = await orgUserService.create(partitionKey, orgId, request.body, {
+    id: actor.id,
+    email: actor.email,
+  });
 
-  return sendSuccess(response, user, "Organization user created.", 201);
+  return sendSuccess(
+    response,
+    {
+      ...result.user,
+      tempPassword: result.tempPassword,
+      passwordWasGenerated: result.passwordWasGenerated,
+      existingUser: result.existingUser,
+    },
+    "Organization user created.",
+    201,
+  );
 }
 
 export async function updateOrgUser(request: Request, response: Response) {
@@ -30,4 +44,27 @@ export async function updateOrgUser(request: Request, response: Response) {
   const user = await orgUserService.update(partitionKey, orgId, userId, request.body);
 
   return sendSuccess(response, user, "Organization user updated.");
+}
+
+export async function removeOrgUser(request: Request, response: Response) {
+  const partitionKey = getRequestPartition(request);
+  const orgId = getRouteId(request.params.orgId);
+  const userId = getRouteId(request.params.userId);
+  const user = await orgUserService.remove(partitionKey, orgId, userId);
+
+  return sendSuccess(response, user, "Organization user removed.");
+}
+
+export async function resetOrgUserPassword(request: Request, response: Response) {
+  const partitionKey = getRequestPartition(request);
+  const orgId = getRouteId(request.params.orgId);
+  const userId = getRouteId(request.params.userId);
+  const actor = request.authUser!;
+
+  const result = await orgUserService.resetPassword(partitionKey, orgId, userId, {
+    id: actor.id,
+    email: actor.email,
+  });
+
+  return sendSuccess(response, result, "Temporary password generated.");
 }

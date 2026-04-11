@@ -2,6 +2,7 @@ export interface AuthUserRecord {
   id: string;
   email: string;
   passwordHash: string;
+  mustChangePassword: boolean;
   isPlatformAdmin: boolean;
   createdAt: string;
   updatedAt: string;
@@ -37,6 +38,8 @@ export interface MeResponse {
   id: string;
   email: string;
   isPlatformAdmin: boolean;
+  hasPassword?: boolean;
+  mustChangePassword?: boolean;
   orgMemberships: Array<{
     orgId: string;
     orgName: string;

@@ -6,6 +6,7 @@ import { OrgUserTable } from "@/components/OrgUserTable";
 import { TempPasswordModal } from "@/components/TempPasswordModal";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -38,6 +39,8 @@ function UsersTab({ org }: { org: Organization }) {
     getOrganizationPrograms,
     getOrgCurrentUser,
     inviteUser,
+    removeUser,
+    resetUserPassword,
     updateUser,
   } = useOrgPortal();
 
@@ -46,6 +49,7 @@ function UsersTab({ org }: { org: Organization }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<OrgRole>(defaultInviteRole);
   const [selectedProgramIds, setSelectedProgramIds] = useState<string[]>([]);
+  const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [tempPasswordData, setTempPasswordData] = useState<{ password: string; email: string } | null>(null);
 
   const orgPrograms = getOrganizationPrograms(org);
@@ -71,7 +75,7 @@ function UsersTab({ org }: { org: Organization }) {
     }
 
     try {
-      const { tempPassword } = await inviteUser({
+      const result = await inviteUser({
         orgId: org.id,
         name,
         email: normalizedEmail,
@@ -83,10 +87,30 @@ function UsersTab({ org }: { org: Organization }) {
       setEmail("");
       setRole(defaultInviteRole);
       setSelectedProgramIds([]);
-      setTempPasswordData({ password: tempPassword, email: normalizedEmail });
+
+      if (result.passwordWasGenerated && result.tempPassword) {
+        setTempPasswordData({ password: result.tempPassword, email: normalizedEmail });
+      } else {
+        toast.success("Existing account added to the organization. Password was not changed.");
+      }
+
+      setIsAddUserOpen(false);
     } catch (error) {
       toast.error(getErrorMessage(error));
     }
+  };
+
+  const handleResetPassword = async (userId: string) => {
+    const result = await resetUserPassword(userId);
+    setTempPasswordData({
+      password: result.tempPassword,
+      email: result.email,
+    });
+  };
+
+  const handleRemoveUser = async (userId: string) => {
+    await removeUser(userId);
+    toast.success("User removed from organization.");
   };
 
   const toggleSelectedProgram = (programId: string, checked: boolean) => {
@@ -99,54 +123,13 @@ function UsersTab({ org }: { org: Organization }) {
   return (
     <div className="space-y-5">
       <section className="rounded-xl border border-border bg-card p-5">
-        <h2 className="text-base font-semibold">Invite User</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Send invites and assign starter access from one place.</p>
-
-        <form className="mt-4 grid gap-4 md:grid-cols-2" onSubmit={submitInvite}>
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Full name</label>
-            <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Alex Morgan" disabled={!canManage} />
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">Users</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Add members, assign role/access, reset passwords, or remove membership.</p>
           </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Email</label>
-            <Input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="alex@organization.com" disabled={!canManage} />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Org Role</label>
-            <Select value={role} onValueChange={(value) => setRole(value as OrgRole)} disabled={!canManage}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="super_admin">Super Admin</SelectItem>
-                <SelectItem value="org_admin">Org Admin</SelectItem>
-                <SelectItem value="manager">Manager</SelectItem>
-                <SelectItem value="staff">Staff</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="md:col-span-2 space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Program Access</label>
-            <div className="grid gap-2 rounded-lg border border-border p-3 sm:grid-cols-2">
-              {orgPrograms.map((program) => {
-                const checked = selectedProgramIds.includes(program.id);
-                return (
-                  <label key={program.id} className="flex items-center gap-2">
-                    <Checkbox checked={checked} onCheckedChange={(state) => toggleSelectedProgram(program.id, Boolean(state))} disabled={!canManage} />
-                    <span className="text-sm">{program.name}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="md:col-span-2 flex justify-end">
-            <Button type="submit" disabled={!canManage}>Send Invite</Button>
-          </div>
-        </form>
+          <Button onClick={() => setIsAddUserOpen(true)} disabled={!canManage}>Add User</Button>
+        </div>
 
         {!canManage && (
           <p className="mt-3 text-xs text-amber-400">
@@ -156,8 +139,69 @@ function UsersTab({ org }: { org: Organization }) {
       </section>
 
       <section>
-        <OrgUserTable users={users} programs={orgPrograms} canManage={canManage} onUpdateUser={updateUser} />
+        <OrgUserTable
+          users={users}
+          programs={orgPrograms}
+          canManage={canManage}
+          onUpdateUser={updateUser}
+          onRemoveUser={handleRemoveUser}
+          onResetUserPassword={handleResetPassword}
+        />
       </section>
+
+      <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add User</DialogTitle>
+          </DialogHeader>
+          <form className="grid gap-4 md:grid-cols-2" onSubmit={submitInvite}>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Full Name</label>
+              <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Alex Morgan" disabled={!canManage} />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Email</label>
+              <Input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="alex@organization.com" disabled={!canManage} />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Role</label>
+              <Select value={role} onValueChange={(value) => setRole(value as OrgRole)} disabled={!canManage}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="org_admin">Admin</SelectItem>
+                  <SelectItem value="staff">Member</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="super_admin">Super Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="md:col-span-2 space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Initial Program Access</label>
+              <div className="grid gap-2 rounded-lg border border-border p-3 sm:grid-cols-2">
+                {orgPrograms.map((program) => {
+                  const checked = selectedProgramIds.includes(program.id);
+                  return (
+                    <label key={program.id} className="flex items-center gap-2">
+                      <Checkbox checked={checked} onCheckedChange={(state) => toggleSelectedProgram(program.id, Boolean(state))} disabled={!canManage} />
+                      <span className="text-sm">{program.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="md:col-span-2 flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setIsAddUserOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={!canManage}>Create</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {tempPasswordData && (
         <TempPasswordModal
@@ -347,21 +391,38 @@ export default function OrgOrganizationPage() {
 
       <Tabs defaultValue="users" className="space-y-4">
         <TabsList className="w-full justify-start flex-wrap h-auto gap-1 bg-transparent p-0">
+          <TabsTrigger value="profile" className="bg-secondary/40 data-[state=active]:bg-secondary">Profile</TabsTrigger>
           <TabsTrigger value="users" className="bg-secondary/40 data-[state=active]:bg-secondary">Users</TabsTrigger>
-          <TabsTrigger value="branding" className="bg-secondary/40 data-[state=active]:bg-secondary">Branding</TabsTrigger>
-          <TabsTrigger value="settings" className="bg-secondary/40 data-[state=active]:bg-secondary">Settings</TabsTrigger>
+          <TabsTrigger value="roles" className="bg-secondary/40 data-[state=active]:bg-secondary">Roles</TabsTrigger>
+          <TabsTrigger value="program-access" className="bg-secondary/40 data-[state=active]:bg-secondary">Program Access</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="profile" className="space-y-4">
+          <SettingsTab org={org} />
+          <BrandingTab org={org} />
+        </TabsContent>
 
         <TabsContent value="users" className="space-y-4">
           <UsersTab org={org} />
         </TabsContent>
 
-        <TabsContent value="branding" className="space-y-4">
-          <BrandingTab org={org} />
+        <TabsContent value="roles" className="space-y-4">
+          <section className="rounded-xl border border-border bg-card p-5">
+            <h2 className="text-base font-semibold">Roles</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Use the Users table to promote or demote members between admin and member roles.</p>
+          </section>
         </TabsContent>
 
-        <TabsContent value="settings" className="space-y-4">
-          <SettingsTab org={org} />
+        <TabsContent value="program-access" className="space-y-4">
+          <section className="rounded-xl border border-border bg-card p-5 space-y-3">
+            <h2 className="text-base font-semibold">Program Access</h2>
+            <p className="text-sm text-muted-foreground">
+              Assign or remove program access per user from the Users table using the Assign Access action.
+            </p>
+            <div className="rounded-lg border border-border bg-background/40 p-3 text-sm text-muted-foreground">
+              Organization programs currently available: {org.assignedProgramIds.length}
+            </div>
+          </section>
         </TabsContent>
       </Tabs>
     </div>

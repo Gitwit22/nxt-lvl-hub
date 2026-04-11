@@ -9,6 +9,8 @@ import {
   normalizeProgram,
   normalizeOrgUser,
   normalizeOrganization,
+  removeOrgUser as removeOrgUserRecord,
+  resetOrgUserPassword as resetOrgUserPasswordRecord,
   toOrgUserMutationInput,
   toOrganizationMutationInput,
   updateOrgUser as updateOrgUserRecord,
@@ -67,6 +69,18 @@ interface InviteUserInput {
   assignedProgramIds: string[];
 }
 
+interface InviteUserResult {
+  tempPassword?: string;
+  passwordWasGenerated: boolean;
+  existingUser: boolean;
+  email: string;
+}
+
+interface ResetUserPasswordResult {
+  tempPassword: string;
+  email: string;
+}
+
 interface CreateOrganizationInput {
   name: string;
   slug: string;
@@ -115,9 +129,11 @@ interface OrgPortalContextType {
   getOrganizationPrograms: (org: Organization) => SuiteProgram[];
   getOrgCurrentUser: (orgId: string) => PortalUser | undefined;
   getProgramsForUser: (org: Organization, userId: string) => SuiteProgram[];
-  inviteUser: (input: InviteUserInput) => Promise<{ tempPassword: string }>;
-  createOrganization: (input: CreateOrganizationInput) => Promise<Organization & { tempPassword?: string }>;
+  inviteUser: (input: InviteUserInput) => Promise<InviteUserResult>;
+  createOrganization: (input: CreateOrganizationInput) => Promise<Organization & { tempPassword?: string; contactUserEmail?: string; contactUserId?: string }>;
   updateUser: (userId: string, updates: Partial<PortalUser>) => Promise<void>;
+  removeUser: (userId: string) => Promise<void>;
+  resetUserPassword: (userId: string) => Promise<ResetUserPasswordResult>;
   updateOrganization: (orgId: string, updates: Partial<Organization>) => Promise<void>;
   setOrganizationPrograms: (orgId: string, assignedProgramIds: string[], assignedBundleIds: string[]) => Promise<void>;
 }
@@ -350,18 +366,14 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
     return orgPrograms.filter((program) => userProgramSet.has(program.id));
   };
 
-  const inviteUser = async (input: InviteUserInput): Promise<{ tempPassword: string }> => {
-    const nextUser: PortalUser = {
-      id: `usr-${Date.now()}`,
-      orgId: input.orgId,
+  const inviteUser = async (input: InviteUserInput): Promise<InviteUserResult> => {
+    const result = await createOrgUserRecord(input.orgId, {
       name: input.name.trim(),
       email: input.email.trim().toLowerCase(),
       role: input.role,
-      active: true,
       assignedProgramIds: input.assignedProgramIds,
-    };
-
-    const result = await createOrgUserRecord(input.orgId, toOrgUserMutationInput(nextUser));
+      active: true,
+    });
     const created = normalizeOrgUser(result);
 
     setUsers((prev) => {
@@ -370,7 +382,12 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
       return next;
     });
 
-    return { tempPassword: result.tempPassword ?? "" };
+    return {
+      tempPassword: result.tempPassword,
+      passwordWasGenerated: result.passwordWasGenerated === true,
+      existingUser: result.existingUser === true,
+      email: created.email,
+    };
   };
 
   const createOrganization = async (input: CreateOrganizationInput) => {
@@ -451,7 +468,12 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
       return next;
     });
 
-    return { ...created, tempPassword: result.tempPassword };
+    return {
+      ...created,
+      tempPassword: result.tempPassword,
+      contactUserEmail: result.contactUserEmail,
+      contactUserId: result.contactUserId,
+    };
   };
 
   const updateUser = async (userId: string, updates: Partial<PortalUser>) => {
@@ -474,6 +496,34 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
       saveUsers(next);
       return next;
     });
+  };
+
+  const removeUser = async (userId: string) => {
+    const current = users.find((user) => user.id === userId);
+    if (!current) {
+      return;
+    }
+
+    await removeOrgUserRecord(current.orgId, userId);
+
+    setUsers((prev) => {
+      const next = prev.filter((user) => user.id !== userId);
+      saveUsers(next);
+      return next;
+    });
+  };
+
+  const resetUserPassword = async (userId: string): Promise<ResetUserPasswordResult> => {
+    const current = users.find((user) => user.id === userId);
+    if (!current) {
+      throw new Error("User not found.");
+    }
+
+    const result = await resetOrgUserPasswordRecord(current.orgId, userId);
+    return {
+      tempPassword: result.tempPassword,
+      email: result.email,
+    };
   };
 
   const getOrgCurrentUser = useCallback(
@@ -526,6 +576,8 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
     inviteUser,
     createOrganization,
     updateUser,
+    removeUser,
+    resetUserPassword,
     updateOrganization,
     setOrganizationPrograms,
   };

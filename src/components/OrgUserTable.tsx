@@ -15,11 +15,20 @@ interface OrgUserTableProps {
   programs: SuiteProgram[];
   canManage: boolean;
   onUpdateUser: (userId: string, updates: Partial<PortalUser>) => Promise<void>;
+  onRemoveUser: (userId: string) => Promise<void>;
+  onResetUserPassword: (userId: string) => Promise<void>;
 }
 
 const roleOptions: OrgRole[] = ["super_admin", "org_admin", "manager", "staff"];
 
-export function OrgUserTable({ users, programs, canManage, onUpdateUser }: OrgUserTableProps) {
+export function OrgUserTable({
+  users,
+  programs,
+  canManage,
+  onUpdateUser,
+  onRemoveUser,
+  onResetUserPassword,
+}: OrgUserTableProps) {
   const [editingUser, setEditingUser] = useState<PortalUser | null>(null);
 
   const programsById = useMemo(() => {
@@ -117,9 +126,40 @@ export function OrgUserTable({ users, programs, canManage, onUpdateUser }: OrgUs
                   </div>
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button size="sm" variant="outline" onClick={() => setEditingUser(user)} disabled={!canManage}>
-                    Assign Access
-                  </Button>
+                  <div className="flex items-center justify-end gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setEditingUser(user)} disabled={!canManage}>
+                      Assign Access
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!canManage}
+                      onClick={() => {
+                        void onResetUserPassword(user.id).catch((error) => {
+                          toast.error(getErrorMessage(error));
+                        });
+                      }}
+                    >
+                      Reset Password
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={!canManage}
+                      onClick={() => {
+                        const confirmed = window.confirm(`Remove ${user.name} from this organization?`);
+                        if (!confirmed) {
+                          return;
+                        }
+
+                        void onRemoveUser(user.id).catch((error) => {
+                          toast.error(getErrorMessage(error));
+                        });
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

@@ -20,6 +20,8 @@ export default function OrgUsersPage() {
     getOrganizationPrograms,
     getOrgCurrentUser,
     inviteUser,
+    removeUser,
+    resetUserPassword,
     updateUser,
   } = useOrgPortal();
 
@@ -30,7 +32,6 @@ export default function OrgUsersPage() {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<OrgRole>(defaultInviteRole);
   const [selectedProgramIds, setSelectedProgramIds] = useState<string[]>([]);
-  const [initialPassword, setInitialPassword] = useState("");
 
   if (!org) {
     return <p className="text-sm text-muted-foreground">Unknown organization.</p>;
@@ -58,28 +59,25 @@ export default function OrgUsersPage() {
       return;
     }
 
-    if (initialPassword && initialPassword.length < 8) {
-      toast.error("Password must be at least 8 characters.");
-      return;
-    }
-
     try {
-      await inviteUser({
+      const result = await inviteUser({
         orgId: org.id,
         name,
         email: normalizedEmail,
         role,
         assignedProgramIds: selectedProgramIds,
-        initialPassword: initialPassword.trim() || undefined,
       });
 
-      toast.success("User added.");
+      toast.success(
+        result.passwordWasGenerated
+          ? "User added with a temporary password."
+          : "Existing account added. Password unchanged.",
+      );
 
       setName("");
       setEmail("");
       setRole(defaultInviteRole);
       setSelectedProgramIds([]);
-      setInitialPassword("");
     } catch (error) {
       toast.error(getErrorMessage(error));
     }
@@ -132,20 +130,6 @@ export default function OrgUsersPage() {
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">
-              Initial Password <span className="text-muted-foreground/60 font-normal">(optional — 8+ chars)</span>
-            </label>
-            <Input
-              type="password"
-              value={initialPassword}
-              onChange={(event) => setInitialPassword(event.target.value)}
-              placeholder="Set a login password for this user"
-              autoComplete="new-password"
-              disabled={!canManage}
-            />
-          </div>
-
           <div className="md:col-span-2 space-y-2">
             <label className="text-xs font-medium text-muted-foreground">Program Access</label>
             <div className="grid gap-2 rounded-lg border border-border p-3 sm:grid-cols-2">
@@ -184,7 +168,17 @@ export default function OrgUsersPage() {
       </section>
 
       <section>
-        <OrgUserTable users={users} programs={orgPrograms} canManage={canManage} onUpdateUser={updateUser} />
+        <OrgUserTable
+          users={users}
+          programs={orgPrograms}
+          canManage={canManage}
+          onUpdateUser={updateUser}
+          onRemoveUser={removeUser}
+          onResetUserPassword={async (userId) => {
+            const reset = await resetUserPassword(userId);
+            toast.success(`Temporary password generated for ${reset.email}. Share securely.`);
+          }}
+        />
       </section>
     </div>
   );
