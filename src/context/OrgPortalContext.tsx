@@ -20,6 +20,7 @@ import { usePrograms } from "@/context/ProgramContext";
 import { useAuth } from "@/context/AuthContext";
 import { Bundle, OrgRole, Organization, PortalUser, SuiteProgram } from "@/types/orgPortal";
 import { getOrganizationSlugFromHost } from "@/lib/orgRoutes";
+import { toBrowserDestination } from "@/lib/appCatalog";
 
 const ORG_STORAGE_KEY = "nxtlvl.organizations";
 const USER_STORAGE_KEY = "nxtlvl.orgUsers";
@@ -224,7 +225,7 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
         .map((segment) => segment[0]?.toUpperCase() ?? "")
         .join(""),
       logoUrl: program.logoUrl,
-      launchUrl: program.type === "external" ? program.externalUrl || `/applications/${program.id}` : program.internalRoute || `/applications/${program.id}`,
+      launchUrl: program.type === "external" ? toBrowserDestination(program.externalUrl || `/applications/${program.id}`) : program.internalRoute || `/applications/${program.id}`,
       status: toPortalProgramStatus(program.status),
       programDomain: program.slug || program.id.replace(/^program-/, ""),
     }));
@@ -256,7 +257,7 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
       const portalSlug = typeof window !== "undefined" ? getOrganizationSlugFromHost(window.location.hostname) : null;
 
       if (portalSlug) {
-        const bootstrap = await getPortalBootstrap();
+        const bootstrap = await getPortalBootstrap(portalSlug);
         const organization = normalizeOrganization(bootstrap.organization);
         const normalizedPrograms = bootstrap.enabledPrograms.map(normalizeProgram).map((program) => ({
           id: program.id,
@@ -268,7 +269,7 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
             .map((segment) => segment[0]?.toUpperCase() ?? "")
             .join(""),
           logoUrl: program.logoUrl,
-          launchUrl: program.type === "external" ? program.externalUrl || `/applications/${program.id}` : program.internalRoute || `/applications/${program.id}`,
+          launchUrl: program.type === "external" ? toBrowserDestination(program.externalUrl || `/applications/${program.id}`) : program.internalRoute || `/applications/${program.id}`,
           status: toPortalProgramStatus(program.status),
           programDomain: program.slug || program.id.replace(/^program-/, ""),
         }));

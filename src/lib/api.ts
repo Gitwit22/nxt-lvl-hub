@@ -784,8 +784,9 @@ export interface PortalBootstrapResponse {
   };
 }
 
-export function getPortalBootstrap() {
-  return apiRequest<PortalBootstrapResponse>("/api/portal/bootstrap");
+export function getPortalBootstrap(slug?: string) {
+  const qs = slug ? `?slug=${encodeURIComponent(slug)}` : "";
+  return apiRequest<PortalBootstrapResponse>(`/api/portal/bootstrap${qs}`);
 }
 
 export function listPrograms() {
