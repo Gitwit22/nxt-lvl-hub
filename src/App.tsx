@@ -120,6 +120,7 @@ const App = () => (
                       <Route path="/admin" element={<Navigate to="/admin/organizations" replace />} />
                       <Route path="/admin/organizations" element={<AdminPage section="organizations" />} />
                       <Route path="/admin/programs" element={<AdminPage section="programs" />} />
+                      <Route path="/admin/subscriptions" element={<AdminPage section="subscriptions" />} />
                     </Route>
                   </Route>
                 </Route>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePrograms } from "@/context/ProgramContext";
 import { useOrgPortal } from "@/context/OrgPortalContext";
+import { useAuth } from "@/context/AuthContext";
 import { getErrorMessage, uploadLogoFile } from "@/lib/api";
 import { Bundle, Organization, OrganizationStatus, PlanType, SuiteProgram } from "@/types/orgPortal";
 import { Program, CATEGORIES, ProgramStatus, ProgramType, ProgramOrigin } from "@/types/program";
@@ -26,7 +27,7 @@ import { toast } from "sonner";
 
 const PAGE_SIZE = 8;
 
-type AdminSection = "organizations" | "programs";
+type AdminSection = "organizations" | "programs" | "subscriptions";
 type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
 type DetailTab = "overview" | "programs" | "users" | "branding" | "domain" | "settings";
 
@@ -1827,12 +1828,278 @@ function SettingsPanel({ org, onSave }: { org: Organization; onSave: (updates: P
   );
 }
 
+// ─── Subscriptions Tab ────────────────────────────────────────────────────────
+
+type SubStatus = "active" | "inactive" | "trialing" | "past_due" | "canceled";
+
+type OrgSubscription = {
+  id: string;
+  organizationId: string;
+  programId: string;
+  status: SubStatus;
+  subscriptionSource: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  seatLimit: number | null;
+  notes: string;
+};
+
+const SUB_STATUS_COLORS: Record<SubStatus, string> = {
+  active: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+  trialing: "bg-amber-500/20 text-amber-200 border-amber-500/30",
+  inactive: "bg-zinc-500/20 text-zinc-400 border-zinc-500/30",
+  past_due: "bg-red-500/20 text-red-300 border-red-500/30",
+  canceled: "bg-zinc-600/20 text-zinc-500 border-zinc-600/30",
+};
+
+const KNOWN_PROGRAMS = [
+  { id: "community-chronicle", name: "Community Chronicle" },
+  { id: "mission-hub", name: "Mission Hub" },
+  { id: "timeflow", name: "Timeflow" },
+];
+
+function SubscriptionsTab() {
+  const { organizations } = useOrgPortal();
+  const [selectedOrgId, setSelectedOrgId] = useState<string>("");
+  const [subs, setSubs] = useState<OrgSubscription[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [editSub, setEditSub] = useState<OrgSubscription | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [form, setForm] = useState({ status: "inactive" as SubStatus, subscriptionSource: "manual", startsAt: "", endsAt: "", seatLimit: "", notes: "" });
+  const [saving, setSaving] = useState(false);
+
+  const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+  const { me } = useAuth();
+  const token = typeof window !== "undefined" ? (document.cookie.match(/(?:^|;)\s*accessToken=([^;]*)/))?.[1] ?? "" : "";
+
+  const loadSubs = async (orgId: string) => {
+    if (!orgId) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/api/admin/organizations/${orgId}/subscriptions`, {
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
+      });
+      if (res.ok) setSubs(await res.json() as OrgSubscription[]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedOrgId) void loadSubs(selectedOrgId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedOrgId]);
+
+  const openEdit = (programId: string) => {
+    const existing = subs.find((s) => s.programId === programId);
+    setEditSub(existing ?? null);
+    setForm({
+      status: existing?.status ?? "inactive",
+      subscriptionSource: existing?.subscriptionSource ?? "manual",
+      startsAt: existing?.startsAt?.slice(0, 10) ?? "",
+      endsAt: existing?.endsAt?.slice(0, 10) ?? "",
+      seatLimit: existing?.seatLimit?.toString() ?? "",
+      notes: existing?.notes ?? "",
+    });
+    setEditOpen(true);
+  };
+
+  const saveSub = async (programId: string) => {
+    if (!selectedOrgId) return;
+    setSaving(true);
+    try {
+      await fetch(`${apiBase}/api/admin/organizations/${selectedOrgId}/subscriptions/${programId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        credentials: "include",
+        body: JSON.stringify({
+          status: form.status,
+          subscriptionSource: form.subscriptionSource,
+          startsAt: form.startsAt || null,
+          endsAt: form.endsAt || null,
+          seatLimit: form.seatLimit ? Number(form.seatLimit) : null,
+          notes: form.notes,
+        }),
+      });
+      await loadSubs(selectedOrgId);
+      setEditOpen(false);
+      toast.success("Subscription updated");
+    } catch {
+      toast.error("Failed to save subscription");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const revokeSub = async (programId: string) => {
+    if (!selectedOrgId) return;
+    try {
+      await fetch(`${apiBase}/api/admin/organizations/${selectedOrgId}/subscriptions/${programId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
+      });
+      await loadSubs(selectedOrgId);
+      toast.success("Subscription revoked");
+    } catch {
+      toast.error("Failed to revoke subscription");
+    }
+  };
+
+  const selectedOrg = organizations.find((o) => o.id === selectedOrgId);
+
+  return (
+    <div className="space-y-6">
+      {/* Org selector */}
+      <div className="metal-panel rounded-lg p-4">
+        <p className="stamped-label text-[10px] mb-2">Select Organization</p>
+        <Select value={selectedOrgId} onValueChange={(v) => setSelectedOrgId(v)}>
+          <SelectTrigger className="w-72">
+            <SelectValue placeholder="Choose an organization…" />
+          </SelectTrigger>
+          <SelectContent>
+            {organizations.map((org) => (
+              <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {selectedOrgId && (
+        <div className="metal-panel rounded-lg p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="stamped-label text-[10px]">Program Subscriptions</p>
+              <h2 className="font-mono text-base font-semibold">{selectedOrg?.name}</h2>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground py-4">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              Loading…
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="font-mono text-[10px] uppercase tracking-widest">Program</TableHead>
+                  <TableHead className="font-mono text-[10px] uppercase tracking-widest">Status</TableHead>
+                  <TableHead className="font-mono text-[10px] uppercase tracking-widest">Source</TableHead>
+                  <TableHead className="font-mono text-[10px] uppercase tracking-widest">Seats</TableHead>
+                  <TableHead className="font-mono text-[10px] uppercase tracking-widest">Expires</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {KNOWN_PROGRAMS.map((prog) => {
+                  const sub = subs.find((s) => s.programId === prog.id);
+                  const statusKey = (sub?.status ?? "inactive") as SubStatus;
+                  return (
+                    <TableRow key={prog.id}>
+                      <TableCell className="font-mono text-sm">{prog.name}</TableCell>
+                      <TableCell>
+                        <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider", SUB_STATUS_COLORS[statusKey])}>
+                          {statusKey}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{sub?.subscriptionSource ?? "—"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{sub?.seatLimit ?? "—"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{sub?.endsAt ? new Date(sub.endsAt).toLocaleDateString() : "—"}</TableCell>
+                      <TableCell className="text-right space-x-2">
+                        <Button size="sm" variant="outline" onClick={() => openEdit(prog.id)}>
+                          <Pencil className="h-3 w-3 mr-1" /> Edit
+                        </Button>
+                        {sub && (
+                          <Button size="sm" variant="ghost" onClick={() => void revokeSub(prog.id)}>
+                            <Trash2 className="h-3 w-3 mr-1" /> Revoke
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      )}
+
+      {/* Edit dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-mono">Edit Subscription</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div>
+              <Label className="text-xs font-mono uppercase tracking-widest">Status</Label>
+              <Select value={form.status} onValueChange={(v) => setForm((p) => ({ ...p, status: v as SubStatus }))}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(["active", "trialing", "inactive", "past_due", "canceled"] as SubStatus[]).map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs font-mono uppercase tracking-widest">Source</Label>
+              <Select value={form.subscriptionSource} onValueChange={(v) => setForm((p) => ({ ...p, subscriptionSource: v }))}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manual">Manual</SelectItem>
+                  <SelectItem value="stripe">Stripe</SelectItem>
+                  <SelectItem value="comp">Comp</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs font-mono uppercase tracking-widest">Starts</Label>
+                <Input className="mt-1" type="date" value={form.startsAt} onChange={(e) => setForm((p) => ({ ...p, startsAt: e.target.value }))} />
+              </div>
+              <div>
+                <Label className="text-xs font-mono uppercase tracking-widest">Ends</Label>
+                <Input className="mt-1" type="date" value={form.endsAt} onChange={(e) => setForm((p) => ({ ...p, endsAt: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs font-mono uppercase tracking-widest">Seat Limit</Label>
+              <Input className="mt-1" type="number" min={1} placeholder="Unlimited" value={form.seatLimit} onChange={(e) => setForm((p) => ({ ...p, seatLimit: e.target.value }))} />
+            </div>
+            <div>
+              <Label className="text-xs font-mono uppercase tracking-widest">Notes</Label>
+              <Textarea className="mt-1 text-sm" rows={2} value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} />
+            </div>
+            <Button className="w-full" disabled={saving} onClick={() => { const prog = KNOWN_PROGRAMS.find((p) => subs.some((s) => s.programId === p.id) || editSub?.programId === p.id); if (prog) void saveSub(prog.id); }}>
+              {saving ? "Saving…" : "Save Subscription"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Admin Page ───────────────────────────────────────────────────────────────
+
 interface AdminPageProps {
   section?: AdminSection;
 }
 
 export default function AdminPage({ section = "organizations" }: AdminPageProps) {
-  const isOrganizationsView = section === "organizations";
+  const sectionLabels: Record<AdminSection, string> = {
+    organizations: "Organization Management",
+    programs: "Program Control Center",
+    subscriptions: "Subscription & Access Control",
+  };
+  const sectionDescriptions: Record<AdminSection, string> = {
+    organizations: "Manage organizations, branding, and access.",
+    programs: "Manage programs, launch paths, and visibility.",
+    subscriptions: "Control which programs each organization can access.",
+  };
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-6">
@@ -1840,22 +2107,18 @@ export default function AdminPage({ section = "organizations" }: AdminPageProps)
         <Screw className="absolute top-3 left-3" />
         <Screw className="absolute top-3 right-3" />
         <p className="stamped-label text-[10px]">Nxt Lvl Suite Admin Panel</p>
-        <h1 className="font-mono text-xl font-bold tracking-tight">
-          {isOrganizationsView ? "Organization Management" : "Program Control Center"}
-        </h1>
+        <h1 className="font-mono text-xl font-bold tracking-tight">{sectionLabels[section]}</h1>
         <img
           src="/3_banner.png"
           alt="Admin banner"
           className="mt-3 h-24 w-full rounded-md border border-border/60 object-cover"
         />
-        <p className="text-xs text-muted-foreground font-mono">
-          {isOrganizationsView
-            ? "Manage organizations, branding, and access."
-            : "Manage programs, launch paths, and visibility."}
-        </p>
+        <p className="text-xs text-muted-foreground font-mono">{sectionDescriptions[section]}</p>
       </div>
 
-      {isOrganizationsView ? <OrganizationsTab /> : <ProgramManagerTab />}
+      {section === "organizations" && <OrganizationsTab />}
+      {section === "programs" && <ProgramManagerTab />}
+      {section === "subscriptions" && <SubscriptionsTab />}
     </div>
   );
 }

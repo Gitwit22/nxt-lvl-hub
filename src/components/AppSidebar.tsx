@@ -1,4 +1,4 @@
-import { Building2, Home, Info, LayoutGrid, LogOut, Users } from "lucide-react";
+import { Building2, Home, Info, LayoutGrid, LogOut, Users, CreditCard } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -29,6 +29,7 @@ export function AppSidebar() {
       ? [
           { title: "Organizations", url: "/admin/organizations", icon: Users },
           { title: "Program Control", url: "/admin/programs", icon: Building2 },
+          { title: "Subscriptions", url: "/admin/subscriptions", icon: CreditCard },
         ]
       : []),
     { title: "About", url: "/about", icon: Info },

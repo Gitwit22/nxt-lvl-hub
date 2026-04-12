@@ -402,14 +402,6 @@ export async function bootstrapAdminApi(setupToken: string): Promise<AuthTokenRe
   return normalizeAuthResponse(payload);
 }
 
-export async function generateLaunchTokenApi(organizationId: string | undefined, programDomain: string): Promise<string> {
-  const data = await apiRequest<{ launchToken: string }>("/api/auth/launch-token", {
-    method: "POST",
-    body: JSON.stringify({ programDomain, ...(organizationId ? { organizationId } : {}) }),
-  });
-  return data.launchToken;
-}
-
 export function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
     return error.message;
@@ -471,10 +463,22 @@ export function normalizeProgram(record: ProgramRecord): Program {
   const now = new Date().toISOString();
   const routePrefix = typeof source.routePrefix === "string" ? source.routePrefix : "";
   const derivedRoute = routePrefix || source.internalRoute || `/applications/${source.id}`;
+  const normalizedSlug = source.slug || source.key || source.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+  // Legacy compatibility for seeded records that used outdated launch mapping.
+  const isLegacyTimeflowInternal =
+    normalizedSlug === "timeflow" &&
+    source.type !== "external" &&
+    (source.internalRoute || "").toLowerCase() === "/workspace/timeflow" &&
+    !source.externalUrl;
+
+  const legacyCommunityChronicleUrl = source.externalUrl === "https://community-chronicle.ntlops.com"
+    ? "https://community-chronicle.nltops.com"
+    : source.externalUrl;
 
   return {
     id: source.id,
-    slug: source.slug || source.key || source.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+    slug: normalizedSlug,
     organizationId: source.organizationId ?? undefined,
     name: source.name,
     shortDescription: source.shortDescription || `${source.name} workspace`,
@@ -483,11 +487,13 @@ export function normalizeProgram(record: ProgramRecord): Program {
     secondaryCategory: source.secondaryCategory ?? undefined,
     tags: Array.isArray(source.tags) ? source.tags : [],
     status: source.status || "live",
-    type: source.type || (source.externalUrl ? "external" : "internal"),
+    type: isLegacyTimeflowInternal ? "external" : (source.type || (source.externalUrl ? "external" : "internal")),
     origin: source.origin || "suite-native",
-    internalRoute: source.type === "external" ? undefined : derivedRoute,
-    externalUrl: source.type === "external" ? source.externalUrl || routePrefix || undefined : source.externalUrl || undefined,
-    openInNewTab: source.openInNewTab ?? source.type === "external",
+    internalRoute: isLegacyTimeflowInternal ? undefined : (source.type === "external" ? undefined : derivedRoute),
+    externalUrl: isLegacyTimeflowInternal
+      ? "https://timeflow.nltops.com"
+      : (source.type === "external" ? legacyCommunityChronicleUrl || routePrefix || undefined : legacyCommunityChronicleUrl || undefined),
+    openInNewTab: isLegacyTimeflowInternal ? true : (source.openInNewTab ?? source.type === "external"),
     logoUrl: source.logoUrl ?? undefined,
     screenshotUrl: source.screenshotUrl ?? undefined,
     accentColor: source.accentColor ?? undefined,
