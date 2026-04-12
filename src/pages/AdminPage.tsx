@@ -29,7 +29,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ProgramLogo } from "@/components/ProgramLogo";
 import { Screw } from "@/components/Screw";
 import { StatusLED } from "@/components/StatusLED";
-import { Check, Plus, Pencil, Trash2, Upload, Search, Eye, PauseCircle, PlayCircle, Globe, Building2 } from "lucide-react";
+import { Check, Plus, Pencil, Trash2, Upload, Search, Eye, EyeOff, PauseCircle, PlayCircle, Globe, Building2 } from "lucide-react";
 import { toast } from "sonner";
 
 const PAGE_SIZE = 8;
@@ -1771,6 +1771,7 @@ function SettingsPanel({ org, onSave }: { org: Organization; onSave: (updates: P
   const [ownerAccess, setOwnerAccess] = useState<OrgOwnerAccessStatus | null>(null);
   const [isOwnerAccessLoading, setIsOwnerAccessLoading] = useState(false);
   const [ownerPasswordInput, setOwnerPasswordInput] = useState("");
+  const [showOwnerPassword, setShowOwnerPassword] = useState(false);
   const [generateInitialPassword, setGenerateInitialPassword] = useState(true);
   const [enableResetPassword, setEnableResetPassword] = useState(false);
   const [tempPasswordData, setTempPasswordData] = useState<{ password: string; email: string } | null>(null);
@@ -1902,13 +1903,25 @@ function SettingsPanel({ org, onSave }: { org: Organization; onSave: (updates: P
               {!generateInitialPassword && (
                 <div className="space-y-2">
                   <Label>Initial Password</Label>
-                  <Input
-                    type="password"
-                    placeholder="Minimum 8 characters"
-                    value={ownerPasswordInput}
-                    onChange={(event) => setOwnerPasswordInput(event.target.value)}
-                    disabled={!ownerAccess?.initialPasswordAllowed}
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showOwnerPassword ? "text" : "password"}
+                      placeholder="Minimum 8 characters"
+                      value={ownerPasswordInput}
+                      onChange={(event) => setOwnerPasswordInput(event.target.value)}
+                      disabled={!ownerAccess?.initialPasswordAllowed}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowOwnerPassword((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      aria-label={showOwnerPassword ? "Hide password" : "Show password"}
+                      disabled={!ownerAccess?.initialPasswordAllowed}
+                    >
+                      {showOwnerPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+                    </button>
+                  </div>
                 </div>
               )}
 
