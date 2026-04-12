@@ -3,7 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { usePrograms } from "@/context/ProgramContext";
 import { useOrgPortal } from "@/context/OrgPortalContext";
 import { useAuth } from "@/context/AuthContext";
-import { getErrorMessage, uploadLogoFile } from "@/lib/api";
+import {
+  getErrorMessage,
+  getOrgOwnerAccessStatus,
+  resetOrgOwnerPassword,
+  setOrgOwnerInitialPassword,
+  type OrgOwnerAccessStatus,
+  uploadLogoFile,
+} from "@/lib/api";
 import { Bundle, Organization, OrganizationStatus, PlanType, SuiteProgram } from "@/types/orgPortal";
 import { Program, CATEGORIES, ProgramStatus, ProgramType, ProgramOrigin } from "@/types/program";
 import { getOrgBasePath, getOrgPortalUrl } from "@/lib/orgRoutes";
@@ -1761,6 +1768,37 @@ function SettingsPanel({ org, onSave }: { org: Organization; onSave: (updates: P
   const [phoneNumber, setPhoneNumber] = useState(org.phoneNumber || "");
   const [seatLimit, setSeatLimit] = useState(org.seatLimit);
   const [status, setStatus] = useState<OrganizationStatus>(org.status);
+  const [ownerAccess, setOwnerAccess] = useState<OrgOwnerAccessStatus | null>(null);
+  const [isOwnerAccessLoading, setIsOwnerAccessLoading] = useState(false);
+  const [ownerPasswordInput, setOwnerPasswordInput] = useState("");
+  const [generateInitialPassword, setGenerateInitialPassword] = useState(true);
+  const [enableResetPassword, setEnableResetPassword] = useState(false);
+  const [tempPasswordData, setTempPasswordData] = useState<{ password: string; email: string } | null>(null);
+
+  const loadOwnerAccess = async () => {
+    setIsOwnerAccessLoading(true);
+    try {
+      const result = await getOrgOwnerAccessStatus(org.id);
+      setOwnerAccess(result);
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setIsOwnerAccessLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadOwnerAccess();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [org.id]);
+
+  const passwordStatusLabel = ownerAccess
+    ? ownerAccess.passwordStatus === "not_initialized"
+      ? "Not initialized"
+      : ownerAccess.passwordStatus === "reset_pending"
+        ? "Reset pending"
+        : "Active"
+    : "Unknown";
 
   return (
     <div className="space-y-4">
@@ -1810,6 +1848,133 @@ function SettingsPanel({ org, onSave }: { org: Organization; onSave: (updates: P
         </p>
       </div>
 
+      <div className="rounded-lg border border-border p-4 space-y-4">
+        <div>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">Owner Access</p>
+          <p className="text-sm text-muted-foreground">Bootstrap and rotate the owner account credentials for this organization only.</p>
+        </div>
+
+        {isOwnerAccessLoading ? (
+          <p className="text-sm text-muted-foreground">Loading owner credential status...</p>
+        ) : (
+          <>
+            <div className="grid gap-3 md:grid-cols-2 text-sm">
+              <div className="rounded-md border border-border/70 bg-secondary/30 p-3">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Owner Email</p>
+                <p className="font-mono text-xs break-all">{ownerAccess?.ownerEmail ?? ownerEmail}</p>
+              </div>
+              <div className="rounded-md border border-border/70 bg-secondary/30 p-3">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Org Role</p>
+                <p>{ownerAccess?.orgRole ?? "owner"}</p>
+              </div>
+              <div className="rounded-md border border-border/70 bg-secondary/30 p-3">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Platform Role</p>
+                <p>{ownerAccess?.platformRole === "suite_admin" ? "Platform Admin" : "Standard User"}</p>
+              </div>
+              <div className="rounded-md border border-border/70 bg-secondary/30 p-3">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Password Status</p>
+                <p>{passwordStatusLabel}</p>
+              </div>
+              <div className="rounded-md border border-border/70 bg-secondary/30 p-3">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Must Change Password</p>
+                <p>{ownerAccess?.mustChangePassword ? "Yes" : "No"}</p>
+              </div>
+              <div className="rounded-md border border-border/70 bg-secondary/30 p-3">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Last Credential Issue</p>
+                <p>{formatDate(ownerAccess?.temporaryPasswordIssuedAt ?? ownerAccess?.passwordInitializedAt ?? undefined)}</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 rounded-md border border-border/70 p-3">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Initial Password Setup</p>
+              <div className="flex items-center justify-between rounded-md border border-border/60 bg-secondary/20 px-3 py-2">
+                <div>
+                  <p className="text-sm">Generate temporary password automatically</p>
+                  <p className="text-xs text-muted-foreground">Disable to set a one-time initial password manually.</p>
+                </div>
+                <Switch
+                  checked={generateInitialPassword}
+                  onCheckedChange={setGenerateInitialPassword}
+                  disabled={!ownerAccess?.initialPasswordAllowed}
+                />
+              </div>
+
+              {!generateInitialPassword && (
+                <div className="space-y-2">
+                  <Label>Initial Password</Label>
+                  <Input
+                    type="password"
+                    placeholder="Minimum 8 characters"
+                    value={ownerPasswordInput}
+                    onChange={(event) => setOwnerPasswordInput(event.target.value)}
+                    disabled={!ownerAccess?.initialPasswordAllowed}
+                  />
+                </div>
+              )}
+
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!ownerAccess?.initialPasswordAllowed}
+                onClick={async () => {
+                  try {
+                    if (!generateInitialPassword && ownerPasswordInput.trim().length < 8) {
+                      toast.error("Initial password must be at least 8 characters.");
+                      return;
+                    }
+
+                    const result = await setOrgOwnerInitialPassword(org.id, {
+                      generateTempPassword: generateInitialPassword,
+                      newPassword: generateInitialPassword ? undefined : ownerPasswordInput.trim(),
+                    });
+
+                    if (result.tempPassword) {
+                      setTempPasswordData({ password: result.tempPassword, email: result.ownerEmail });
+                    } else {
+                      toast.success("Initial owner password set.");
+                    }
+                    setOwnerPasswordInput("");
+                    await loadOwnerAccess();
+                  } catch (error) {
+                    toast.error(getErrorMessage(error));
+                  }
+                }}
+              >
+                Set Initial Password
+              </Button>
+            </div>
+
+            <div className="space-y-3 rounded-md border border-border/70 p-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Reset Password</p>
+                  <p className="text-xs text-muted-foreground">Generate a new temporary password for the owner account.</p>
+                </div>
+                <Switch checked={enableResetPassword} onCheckedChange={setEnableResetPassword} />
+              </div>
+
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={!enableResetPassword || !ownerAccess?.resetAllowed}
+                onClick={async () => {
+                  try {
+                    const result = await resetOrgOwnerPassword(org.id);
+                    setTempPasswordData({ password: result.tempPassword ?? "", email: result.ownerEmail });
+                    setEnableResetPassword(false);
+                    await loadOwnerAccess();
+                  } catch (error) {
+                    toast.error(getErrorMessage(error));
+                  }
+                }}
+              >
+                Generate Temporary Password
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+
       <div className="flex justify-end">
         <Button
           onClick={async () => {
@@ -1824,6 +1989,16 @@ function SettingsPanel({ org, onSave }: { org: Organization; onSave: (updates: P
           Save Settings
         </Button>
       </div>
+
+      {tempPasswordData && (
+        <TempPasswordModal
+          open
+          onClose={() => setTempPasswordData(null)}
+          tempPassword={tempPasswordData.password}
+          userEmail={tempPasswordData.email}
+          context="org"
+        />
+      )}
     </div>
   );
 }

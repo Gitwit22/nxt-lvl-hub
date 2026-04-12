@@ -457,6 +457,31 @@ export type ResetOrgUserPasswordResult = {
   mustChangePassword: boolean;
 };
 
+export type OrgOwnerPasswordStatus = "not_initialized" | "active" | "reset_pending";
+
+export type OrgOwnerAccessStatus = {
+  organizationId: string;
+  ownerEmail: string;
+  ownerUserId: string | null;
+  orgRole: string;
+  platformRole: string;
+  passwordStatus: OrgOwnerPasswordStatus;
+  mustChangePassword: boolean;
+  passwordInitializedAt: string | null;
+  temporaryPasswordIssuedAt: string | null;
+  initialPasswordAllowed: boolean;
+  resetAllowed: boolean;
+};
+
+export type OrgOwnerCredentialMutationResult = {
+  organizationId: string;
+  ownerUserId: string;
+  ownerEmail: string;
+  tempPassword?: string;
+  mustChangePassword: boolean;
+  passwordStatus: OrgOwnerPasswordStatus;
+};
+
 export function normalizeProgram(record: ProgramRecord): Program {
   const source = record as ProgramRecord & { key?: string; routePrefix?: string };
   const { deletedAt: _deletedAt, ...program } = source;
@@ -687,6 +712,31 @@ export interface PortalStatusResponse {
   customDomain: string | null;
 }
 
+export interface ProgramTokenResponse {
+  token: string;
+  user: {
+    id: string;
+    email: string;
+    role: string;
+    organizationId: string;
+    organizationName?: string;
+    programDomain: string;
+  };
+}
+
+/**
+ * Exchange the current Suite JWT for a program-scoped JWT.
+ * Called by the Suite before opening a program app so the program can
+ * bootstrap an authenticated session from its own perspective.
+ */
+export async function generateProgramTokenApi(programDomain: string): Promise<ProgramTokenResponse> {
+  const payload = await apiRequest<ProgramTokenResponse>("/api/auth/program-token", {
+    method: "POST",
+    body: JSON.stringify({ programDomain }),
+  });
+  return payload;
+}
+
 export function getPortalStatus(slugOrSubdomain: string) {
   return apiRequest<PortalStatusResponse>(`/api/organization/portal-status?slug=${encodeURIComponent(slugOrSubdomain)}`);
 }
@@ -794,6 +844,26 @@ export function removeOrgUser(orgId: string, userId: string) {
 
 export function resetOrgUserPassword(orgId: string, userId: string) {
   return apiRequest<ResetOrgUserPasswordResult>(`/api/orgs/${orgId}/users/${userId}/reset-password`, {
+    method: "POST",
+  });
+}
+
+export function getOrgOwnerAccessStatus(orgId: string) {
+  return apiRequest<OrgOwnerAccessStatus>(`/api/orgs/${orgId}/owner-access`);
+}
+
+export function setOrgOwnerInitialPassword(
+  orgId: string,
+  payload: { generateTempPassword?: boolean; newPassword?: string },
+) {
+  return apiRequest<OrgOwnerCredentialMutationResult>(`/api/orgs/${orgId}/owner-access/initialize-password`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function resetOrgOwnerPassword(orgId: string) {
+  return apiRequest<OrgOwnerCredentialMutationResult>(`/api/orgs/${orgId}/owner-access/reset-password`, {
     method: "POST",
   });
 }
