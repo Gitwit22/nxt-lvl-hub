@@ -45,12 +45,19 @@ function UsersTab({ org }: { org: Organization }) {
   } = useOrgPortal();
 
   const users = useMemo(() => getUsersForOrganization(org.id), [getUsersForOrganization, org.id]);
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<OrgRole>(defaultInviteRole);
+  const [passwordMode, setPasswordMode] = useState<"auto" | "manual">("auto");
+  const [manualTempPassword, setManualTempPassword] = useState("");
   const [selectedProgramIds, setSelectedProgramIds] = useState<string[]>([]);
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
-  const [tempPasswordData, setTempPasswordData] = useState<{ password: string; email: string } | null>(null);
+  const [tempPasswordData, setTempPasswordData] = useState<{
+    password: string;
+    email: string;
+    mustChangePassword: boolean;
+  } | null>(null);
 
   const orgPrograms = getOrganizationPrograms(org);
   const currentUser = getOrgCurrentUser(org.id);
@@ -58,13 +65,18 @@ function UsersTab({ org }: { org: Organization }) {
 
   const submitInvite = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!canManage || !name.trim() || !email.trim()) return;
+    if (!canManage || !email.trim()) return;
 
     const normalizedEmail = email.trim().toLowerCase();
     const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail);
 
     if (!isValidEmail) {
       toast.error("Enter a valid email address.");
+      return;
+    }
+
+    if (passwordMode === "manual" && manualTempPassword.trim().length < 8) {
+      toast.error("Manual temporary password must be at least 8 characters.");
       return;
     }
 
@@ -77,21 +89,35 @@ function UsersTab({ org }: { org: Organization }) {
     try {
       const result = await inviteUser({
         orgId: org.id,
-        name,
+        name: [firstName.trim(), lastName.trim()].filter(Boolean).join(" ") || normalizedEmail.split("@")[0],
+        firstName,
+        lastName,
         email: normalizedEmail,
         role,
+        passwordMode,
+        tempPassword: passwordMode === "manual" ? manualTempPassword.trim() : undefined,
         assignedProgramIds: selectedProgramIds,
       });
 
-      setName("");
+      setFirstName("");
+      setLastName("");
       setEmail("");
       setRole(defaultInviteRole);
+      setPasswordMode("auto");
+      setManualTempPassword("");
       setSelectedProgramIds([]);
 
-      if (result.passwordWasGenerated && result.tempPassword) {
-        setTempPasswordData({ password: result.tempPassword, email: normalizedEmail });
+      const tempPassword = result.passwordWasGenerated
+        ? result.tempPassword
+        : (result.manualTempPassword || result.tempPassword);
+      if (tempPassword) {
+        setTempPasswordData({
+          password: tempPassword,
+          email: normalizedEmail,
+          mustChangePassword: result.mustChangePassword !== false,
+        });
       } else {
-        toast.success("Existing account added to the organization. Password was not changed.");
+        toast.success("User was added to the organization.");
       }
 
       setIsAddUserOpen(false);
@@ -105,6 +131,7 @@ function UsersTab({ org }: { org: Organization }) {
     setTempPasswordData({
       password: result.tempPassword,
       email: result.email,
+      mustChangePassword: result.mustChangePassword !== false,
     });
   };
 
@@ -156,8 +183,13 @@ function UsersTab({ org }: { org: Organization }) {
           </DialogHeader>
           <form className="grid gap-4 md:grid-cols-2" onSubmit={submitInvite}>
             <div className="space-y-2">
-              <label className="text-xs font-medium text-muted-foreground">Full Name</label>
-              <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Alex Morgan" disabled={!canManage} />
+              <label className="text-xs font-medium text-muted-foreground">First Name (optional)</label>
+              <Input value={firstName} onChange={(event) => setFirstName(event.target.value)} placeholder="Alex" disabled={!canManage} />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Last Name (optional)</label>
+              <Input value={lastName} onChange={(event) => setLastName(event.target.value)} placeholder="Morgan" disabled={!canManage} />
             </div>
 
             <div className="space-y-2">
@@ -173,12 +205,38 @@ function UsersTab({ org }: { org: Organization }) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="org_admin">Admin</SelectItem>
-                  <SelectItem value="staff">Member</SelectItem>
+                  <SelectItem value="staff">Staff</SelectItem>
                   <SelectItem value="manager">Manager</SelectItem>
-                  <SelectItem value="super_admin">Super Admin</SelectItem>
+                  <SelectItem value="viewer">Viewer</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Temporary Password Mode</label>
+              <Select value={passwordMode} onValueChange={(value) => setPasswordMode(value as "auto" | "manual")} disabled={!canManage}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Auto-generate temporary password</SelectItem>
+                  <SelectItem value="manual">Manually set temporary password</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {passwordMode === "manual" && (
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground">Temporary Password (min 8 chars)</label>
+                <Input
+                  type="text"
+                  value={manualTempPassword}
+                  onChange={(event) => setManualTempPassword(event.target.value)}
+                  placeholder="Set a temporary password"
+                  disabled={!canManage}
+                />
+              </div>
+            )}
 
             <div className="md:col-span-2 space-y-2">
               <label className="text-xs font-medium text-muted-foreground">Initial Program Access</label>
@@ -209,6 +267,9 @@ function UsersTab({ org }: { org: Organization }) {
           onClose={() => setTempPasswordData(null)}
           tempPassword={tempPasswordData.password}
           userEmail={tempPasswordData.email}
+          organizationName={org.name}
+          organizationId={org.id}
+          mustChangePassword={tempPasswordData.mustChangePassword}
           context="user"
         />
       )}

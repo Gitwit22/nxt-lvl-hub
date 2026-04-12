@@ -13,17 +13,29 @@ import { toast } from "sonner";
  */
 export function ForcePasswordChange() {
   const { refreshMe } = useAuth();
+  const [currentTemporaryPassword, setCurrentTemporaryPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  const hasMinLength = newPassword.length >= 8;
+  const hasUpper = /[A-Z]/.test(newPassword);
+  const hasLower = /[a-z]/.test(newPassword);
+  const hasNumber = /\d/.test(newPassword);
+  const isStrongEnough = hasMinLength && hasUpper && hasLower && hasNumber;
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (newPassword.length < 8) {
-      toast.error("Password must be at least 8 characters.");
+    if (!currentTemporaryPassword) {
+      toast.error("Current temporary password is required.");
+      return;
+    }
+    if (!isStrongEnough) {
+      toast.error("Password must be at least 8 characters and include uppercase, lowercase, and a number.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -33,7 +45,7 @@ export function ForcePasswordChange() {
 
     setIsSaving(true);
     try {
-      await completeForceResetApi(newPassword);
+      await completeForceResetApi(currentTemporaryPassword, newPassword);
       toast.success("Password updated. Welcome!");
       await refreshMe();
     } catch (error) {
@@ -58,14 +70,35 @@ export function ForcePasswordChange() {
 
         <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
           <div className="space-y-2">
-            <Label>New Password <span className="text-muted-foreground/60 font-normal text-xs">(8+ characters)</span></Label>
+            <Label>Current Temporary Password</Label>
+            <div className="relative">
+              <Input
+                type={showCurrentPassword ? "text" : "password"}
+                value={currentTemporaryPassword}
+                onChange={(e) => setCurrentTemporaryPassword(e.target.value)}
+                autoComplete="current-password"
+                autoFocus
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowCurrentPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                aria-label={showCurrentPassword ? "Hide password" : "Show password"}
+              >
+                {showCurrentPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>New Password <span className="text-muted-foreground/60 font-normal text-xs">(8+ chars, upper/lower/number)</span></Label>
             <div className="relative">
               <Input
                 type={showNewPassword ? "text" : "password"}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 autoComplete="new-password"
-                autoFocus
                 className="pr-10"
               />
               <button
@@ -98,10 +131,15 @@ export function ForcePasswordChange() {
               </button>
             </div>
           </div>
+
+          <p className="text-xs text-muted-foreground">
+            Password strength: {hasMinLength ? "length ok" : "8+ chars"} • {hasUpper ? "uppercase ok" : "needs uppercase"} • {hasLower ? "lowercase ok" : "needs lowercase"} • {hasNumber ? "number ok" : "needs number"}
+          </p>
+
           <Button
             type="submit"
             className="w-full"
-            disabled={isSaving || !newPassword || !confirmPassword}
+            disabled={isSaving || !currentTemporaryPassword || !newPassword || !confirmPassword}
           >
             {isSaving ? "Saving..." : "Set Password & Continue"}
           </Button>

@@ -64,21 +64,28 @@ function toPortalProgramStatus(status: string): SuiteProgram["status"] {
 interface InviteUserInput {
   orgId: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
   role: OrgRole;
+  passwordMode?: "auto" | "manual";
+  tempPassword?: string;
   assignedProgramIds: string[];
 }
 
 interface InviteUserResult {
   tempPassword?: string;
+  manualTempPassword?: string;
   passwordWasGenerated: boolean;
   existingUser: boolean;
   email: string;
+  mustChangePassword?: boolean;
 }
 
 interface ResetUserPasswordResult {
   tempPassword: string;
   email: string;
+  mustChangePassword?: boolean;
 }
 
 interface CreateOrganizationInput {
@@ -369,8 +376,12 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
   const inviteUser = async (input: InviteUserInput): Promise<InviteUserResult> => {
     const result = await createOrgUserRecord(input.orgId, {
       name: input.name.trim(),
+      firstName: input.firstName?.trim() || undefined,
+      lastName: input.lastName?.trim() || undefined,
       email: input.email.trim().toLowerCase(),
       role: input.role,
+      passwordMode: input.passwordMode,
+      tempPassword: input.tempPassword,
       assignedProgramIds: input.assignedProgramIds,
       active: true,
     });
@@ -384,9 +395,11 @@ export function OrgPortalProvider({ children }: { children: React.ReactNode }) {
 
     return {
       tempPassword: result.tempPassword,
+      manualTempPassword: result.manualTempPassword,
       passwordWasGenerated: result.passwordWasGenerated === true,
       existingUser: result.existingUser === true,
       email: created.email,
+      mustChangePassword: result.mustChangePassword,
     };
   };
 

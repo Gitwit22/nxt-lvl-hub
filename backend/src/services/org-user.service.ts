@@ -16,6 +16,13 @@ interface CreateOrgUserActor {
   email: string;
 }
 
+function toAccountStatus(params: { active: boolean; mustChangePassword: boolean; hasPassword: boolean }) {
+  if (!params.active) return "disabled" as const;
+  if (params.mustChangePassword) return "password_change_required" as const;
+  if (!params.hasPassword) return "invited" as const;
+  return "active" as const;
+}
+
 function generateTemporaryPassword() {
   const value = crypto.randomBytes(4).toString("hex").toUpperCase();
   return `${value.slice(0, 4)}-${value.slice(4)}`;
@@ -24,9 +31,26 @@ function generateTemporaryPassword() {
 export class OrgUserService {
   async list(partitionKey: string, orgId: string) {
     const users = await orgUserRepository.list(partitionKey, orgId);
+    const authUsers = await authUserRepository.list(partitionKey);
+    const authById = new Map(authUsers.filter((user) => !user.deletedAt).map((user) => [user.id, user]));
 
     return users
       .filter((user) => !user.deletedAt)
+      .map((user) => {
+        const authUser = user.authUserId ? authById.get(user.authUserId) : undefined;
+        const mustChangePassword = authUser?.mustChangePassword ?? user.mustChangePassword ?? false;
+        const accountStatus = user.accountStatus || toAccountStatus({
+          active: user.active,
+          mustChangePassword,
+          hasPassword: Boolean(authUser?.passwordHash),
+        });
+
+        return {
+          ...user,
+          mustChangePassword,
+          accountStatus,
+        };
+      })
       .sort((left, right) => left.name.localeCompare(right.name));
   }
 
@@ -37,9 +61,17 @@ export class OrgUserService {
     }
   }
 
-  private async createAuthUserWithTemporaryPassword(partitionKey: string, email: string) {
+  private async createAuthUserWithTemporaryPassword(
+    partitionKey: string,
+    email: string,
+    passwordMode: "auto" | "manual",
+    manualTempPassword?: string,
+  ) {
     const now = new Date().toISOString();
-    const tempPassword = generateTemporaryPassword();
+    const tempPassword = passwordMode === "manual" ? (manualTempPassword || "") : generateTemporaryPassword();
+    if (!tempPassword || tempPassword.length < 8) {
+      throw new AppError("Temporary password must be at least 8 characters.", 400);
+    }
     const passwordHash = await bcrypt.hash(tempPassword, BCRYPT_ROUNDS);
 
     const authUser: AuthUserRecord = {
@@ -54,7 +86,7 @@ export class OrgUserService {
     };
 
     const created = await authUserRepository.create(partitionKey, authUser);
-    return { authUser: created, tempPassword, passwordWasGenerated: true };
+    return { authUser: created, tempPassword, passwordWasGenerated: passwordMode === "auto" };
   }
 
   async create(
@@ -68,6 +100,10 @@ export class OrgUserService {
     const data = createOrgUserInputSchema.parse(payload);
     const email = data.email.trim().toLowerCase();
     const actorEmail = actor.email.trim().toLowerCase();
+    const firstName = (data.firstName || "").trim();
+    const lastName = (data.lastName || "").trim();
+    const resolvedName = [firstName, lastName].filter(Boolean).join(" ") || data.name.trim();
+    const passwordMode = data.passwordMode === "manual" ? "manual" : "auto";
 
     if (email === actorEmail) {
       throw new AppError("Use Account settings to manage your own password.", 400);
@@ -89,20 +125,56 @@ export class OrgUserService {
     let passwordWasGenerated = false;
 
     if (!existingAuthUser) {
-      const created = await this.createAuthUserWithTemporaryPassword(partitionKey, email);
+      const created = await this.createAuthUserWithTemporaryPassword(
+        partitionKey,
+        email,
+        passwordMode,
+        data.tempPassword,
+      );
       authUserId = created.authUser.id;
       tempPassword = created.tempPassword;
       passwordWasGenerated = created.passwordWasGenerated;
+    } else {
+      const tempPasswordToUse = passwordMode === "manual"
+        ? (data.tempPassword || "")
+        : generateTemporaryPassword();
+
+      if (!tempPasswordToUse || tempPasswordToUse.length < 8) {
+        throw new AppError("Temporary password must be at least 8 characters.", 400);
+      }
+
+      const passwordHash = await bcrypt.hash(tempPasswordToUse, BCRYPT_ROUNDS);
+      const updatedAuthUser = await authUserRepository.update(partitionKey, existingAuthUser.id, (user) => ({
+        ...user,
+        passwordHash,
+        mustChangePassword: true,
+        updatedAt: new Date().toISOString(),
+      }));
+
+      if (!updatedAuthUser) {
+        throw new AppError("Unable to update existing account credentials.", 500);
+      }
+
+      authUserId = updatedAuthUser.id;
+      tempPassword = tempPasswordToUse;
+      passwordWasGenerated = passwordMode === "auto";
     }
 
     const now = new Date().toISOString();
     const user: OrgUserRecord = {
       id: `usr-${crypto.randomUUID()}`,
       orgId,
-      name: data.name.trim(),
+      name: resolvedName,
+      firstName: firstName || undefined,
+      lastName: lastName || undefined,
       email,
       role: data.role,
       active: data.active ?? true,
+      mustChangePassword: true,
+      accountStatus: "password_change_required",
+      invitedById: actor.id,
+      temporaryPasswordIssuedAt: now,
+      passwordSetAt: now,
       assignedProgramIds: data.assignedProgramIds || [],
       authUserId,
       createdAt: now,
@@ -113,10 +185,13 @@ export class OrgUserService {
     const createdUser = await orgUserRepository.create(partitionKey, user);
 
     return {
-      user: createdUser,
+      user: {
+        ...createdUser,
+        accountStatus: toAccountStatus({ active: createdUser.active, mustChangePassword: true, hasPassword: true }),
+      },
       tempPassword,
       passwordWasGenerated,
-      existingUser: !passwordWasGenerated,
+      existingUser: Boolean(existingAuthUser),
     };
   }
 
@@ -140,9 +215,16 @@ export class OrgUserService {
     const updated = await orgUserRepository.update(partitionKey, userId, (user) => ({
       ...user,
       name: (validated.name ?? user.name).trim(),
+      firstName: (validated.firstName ?? user.firstName ?? "").trim() || undefined,
+      lastName: (validated.lastName ?? user.lastName ?? "").trim() || undefined,
       email: nextEmail,
       role: validated.role ?? user.role,
       active: validated.active ?? user.active,
+      accountStatus: toAccountStatus({
+        active: validated.active ?? user.active,
+        mustChangePassword: user.mustChangePassword ?? false,
+        hasPassword: true,
+      }),
       assignedProgramIds: validated.assignedProgramIds ?? user.assignedProgramIds,
       updatedAt: new Date().toISOString(),
     }));
@@ -164,6 +246,7 @@ export class OrgUserService {
     const removed = await orgUserRepository.update(partitionKey, userId, (user) => ({
       ...user,
       active: false,
+      accountStatus: "disabled",
       deletedAt,
       updatedAt: deletedAt,
     }));
@@ -200,6 +283,7 @@ export class OrgUserService {
 
     const tempPassword = generateTemporaryPassword();
     const passwordHash = await bcrypt.hash(tempPassword, BCRYPT_ROUNDS);
+    const now = new Date().toISOString();
 
     if (!authUser) {
       const now = new Date().toISOString();
@@ -218,7 +302,7 @@ export class OrgUserService {
         ...user,
         passwordHash,
         mustChangePassword: true,
-        updatedAt: new Date().toISOString(),
+        updatedAt: now,
       }));
 
       if (!updatedAuthUser) {
@@ -232,7 +316,20 @@ export class OrgUserService {
       await orgUserRepository.update(partitionKey, userId, (user) => ({
         ...user,
         authUserId: authUser.id,
-        updatedAt: new Date().toISOString(),
+        mustChangePassword: true,
+        accountStatus: "password_change_required",
+        temporaryPasswordIssuedAt: now,
+        passwordSetAt: now,
+        updatedAt: now,
+      }));
+    } else {
+      await orgUserRepository.update(partitionKey, userId, (user) => ({
+        ...user,
+        mustChangePassword: true,
+        accountStatus: "password_change_required",
+        temporaryPasswordIssuedAt: now,
+        passwordSetAt: now,
+        updatedAt: now,
       }));
     }
 
@@ -241,6 +338,8 @@ export class OrgUserService {
       email: current.email,
       tempPassword,
       mustChangePassword: true,
+      accountStatus: "password_change_required",
+      temporaryPasswordIssuedAt: now,
     };
   }
 }

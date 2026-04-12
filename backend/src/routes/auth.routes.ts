@@ -18,6 +18,7 @@ import { authRateLimitMiddleware } from "../middleware/rate-limit.js";
 import {
 	bootstrapAdminSchema,
 	changePasswordSchema,
+	completeForceResetSchema,
 	loginSchema,
 	registerSchema,
 	setPasswordSchema,
@@ -32,7 +33,7 @@ authRouter.post("/auth/refresh", authRateLimitMiddleware, asyncHandler(refresh))
 authRouter.get("/auth/me", authMiddleware, asyncHandler(me));
 authRouter.post("/auth/set-password", authMiddleware, validateRequest(setPasswordSchema), asyncHandler(setPassword));
 authRouter.post("/auth/change-password", authMiddleware, validateRequest(changePasswordSchema), asyncHandler(changePassword));
-authRouter.post("/auth/complete-force-reset", authMiddleware, validateRequest(setPasswordSchema), asyncHandler(completeForceReset));
+authRouter.post("/auth/complete-force-reset", authMiddleware, validateRequest(completeForceResetSchema), asyncHandler(completeForceReset));
 authRouter.post("/auth/launch-token", authMiddleware, asyncHandler(launchToken));
 authRouter.post(
 	"/auth/bootstrap-admin",

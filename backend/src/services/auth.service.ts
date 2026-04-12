@@ -249,7 +249,22 @@ export class AuthService {
     await this.setPassword(authUserId, partition, newPassword);
   }
 
-  async completeForceReset(authUserId: string, partition: string, newPassword: string) {
+  async completeForceReset(
+    authUserId: string,
+    partition: string,
+    currentTemporaryPassword: string,
+    newPassword: string,
+  ) {
+    const user = await authUserRepository.findById(partition, authUserId);
+    if (!user || user.deletedAt) {
+      throw new AppError("Account not found.", 401);
+    }
+
+    const valid = await bcrypt.compare(currentTemporaryPassword, user.passwordHash || DUMMY_HASH);
+    if (!valid) {
+      throw new AppError("Current temporary password is incorrect.", 401);
+    }
+
     await this.setPassword(authUserId, partition, newPassword);
   }
 

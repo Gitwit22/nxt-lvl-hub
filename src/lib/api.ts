@@ -374,10 +374,10 @@ export async function setPasswordApi(newPassword: string): Promise<void> {
   });
 }
 
-export async function completeForceResetApi(newPassword: string): Promise<void> {
+export async function completeForceResetApi(currentTemporaryPassword: string, newPassword: string): Promise<void> {
   await apiRequest<void>("/api/auth/complete-force-reset", {
     method: "POST",
-    body: JSON.stringify({ newPassword }),
+    body: JSON.stringify({ currentTemporaryPassword, newPassword }),
   });
 }
 
@@ -424,6 +424,13 @@ export interface OrganizationRecord extends Organization {
 }
 
 export interface OrgUserRecord extends PortalUser {
+  firstName?: string;
+  lastName?: string;
+  mustChangePassword?: boolean;
+  accountStatus?: "active" | "invited" | "password_change_required" | "disabled";
+  invitedById?: string | null;
+  temporaryPasswordIssuedAt?: string | null;
+  passwordSetAt?: string | null;
   createdAt: string;
   updatedAt: string;
   deletedAt?: string | null;
@@ -438,16 +445,22 @@ export type OrgUserMutationInput = Omit<OrgUserRecord, "createdAt" | "updatedAt"
 
 export type CreateOrgUserPayload = {
   name: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
   role: PortalUser["role"];
+  passwordMode?: "auto" | "manual";
+  tempPassword?: string;
   assignedProgramIds?: string[];
   active?: boolean;
 };
 
 export type CreateOrgUserResult = OrgUserRecord & {
   tempPassword?: string;
+  manualTempPassword?: string;
   passwordWasGenerated?: boolean;
   existingUser?: boolean;
+  mustChangePassword?: boolean;
 };
 
 export type ResetOrgUserPasswordResult = {
@@ -455,6 +468,8 @@ export type ResetOrgUserPasswordResult = {
   email: string;
   tempPassword: string;
   mustChangePassword: boolean;
+  accountStatus?: "password_change_required";
+  temporaryPasswordIssuedAt?: string;
 };
 
 export type OrgOwnerPasswordStatus = "not_initialized" | "active" | "reset_pending";
@@ -608,9 +623,16 @@ export function normalizeOrgUser(record: OrgUserRecord): PortalUser {
     id: source.id || crypto.randomUUID(),
     orgId: source.orgId || "",
     name: source.name || source.email || "User",
+    firstName: source.firstName || undefined,
+    lastName: source.lastName || undefined,
     email: source.email || "",
     role: source.role || "staff",
     active: source.active ?? true,
+    mustChangePassword: source.mustChangePassword ?? false,
+    accountStatus: source.accountStatus || ((source.active ?? true) ? "active" : "disabled"),
+    invitedById: source.invitedById ?? undefined,
+    temporaryPasswordIssuedAt: source.temporaryPasswordIssuedAt ?? undefined,
+    passwordSetAt: source.passwordSetAt ?? undefined,
     assignedProgramIds: Array.isArray(source.assignedProgramIds) ? source.assignedProgramIds : [],
     authUserId: source.authUserId ?? undefined,
   };

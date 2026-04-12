@@ -8,10 +8,22 @@ interface TempPasswordModalProps {
   onClose: () => void;
   tempPassword: string;
   userEmail: string;
+  organizationName?: string;
+  organizationId?: string;
+  mustChangePassword?: boolean;
   context?: "user" | "org"; // "user" = added to org, "org" = org created with owner
 }
 
-export function TempPasswordModal({ open, onClose, tempPassword, userEmail, context = "user" }: TempPasswordModalProps) {
+export function TempPasswordModal({
+  open,
+  onClose,
+  tempPassword,
+  userEmail,
+  organizationName,
+  organizationId,
+  mustChangePassword = true,
+  context = "user",
+}: TempPasswordModalProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -36,6 +48,17 @@ export function TempPasswordModal({ open, onClose, tempPassword, userEmail, cont
             A temporary password has been generated for <span className="font-medium text-foreground">{userEmail}</span>.
             Share it securely — it will not be shown again.
           </p>
+
+          {(organizationName || organizationId) && (
+            <div className="rounded-lg border border-border/60 bg-secondary/40 p-3 text-xs text-muted-foreground space-y-1">
+              {organizationName ? <p><span className="text-foreground font-medium">Organization:</span> {organizationName}</p> : null}
+              {organizationId ? <p><span className="text-foreground font-medium">Organization ID:</span> {organizationId}</p> : null}
+              <p>
+                <span className="text-foreground font-medium">Must change password on first login:</span>{" "}
+                {mustChangePassword ? "Yes" : "No"}
+              </p>
+            </div>
+          )}
 
           <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 space-y-2">
             <p className="text-xs uppercase tracking-wider text-amber-400 font-medium">Temporary Password</p>

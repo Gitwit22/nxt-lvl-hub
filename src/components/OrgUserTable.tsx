@@ -19,7 +19,22 @@ interface OrgUserTableProps {
   onResetUserPassword: (userId: string) => Promise<void>;
 }
 
-const roleOptions: OrgRole[] = ["super_admin", "org_admin", "manager", "staff"];
+const roleOptions: OrgRole[] = ["super_admin", "org_admin", "manager", "staff", "viewer"];
+
+function renderStatus(user: PortalUser) {
+  const status = user.accountStatus || (user.active ? "active" : "disabled");
+
+  if (status === "password_change_required") {
+    return <Badge variant="outline" className="border-amber-500/40 text-amber-300">Password Change Required</Badge>;
+  }
+  if (status === "invited") {
+    return <Badge variant="outline" className="border-sky-500/40 text-sky-300">Invited</Badge>;
+  }
+  if (status === "disabled") {
+    return <Badge variant="outline">Disabled</Badge>;
+  }
+  return <Badge variant="secondary">Active</Badge>;
+}
 
 export function OrgUserTable({
   users,
@@ -112,7 +127,7 @@ export function OrgUserTable({
                         });
                       }}
                     />
-                    <Badge variant={user.active ? "secondary" : "outline"}>{user.active ? "Active" : "Inactive"}</Badge>
+                    {renderStatus(user)}
                   </div>
                 </TableCell>
                 <TableCell>

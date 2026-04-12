@@ -144,12 +144,19 @@ export async function changePassword(request: Request, response: Response) {
 
 export async function completeForceReset(request: Request, response: Response) {
   const authUser = request.authUser!;
-  const { newPassword } = request.body as { newPassword: string };
+  const { currentTemporaryPassword, newPassword } = request.body as {
+    currentTemporaryPassword: string;
+    newPassword: string;
+  };
+
+  if (!currentTemporaryPassword || currentTemporaryPassword.length < 1) {
+    throw new AppError("Current temporary password is required.", 400);
+  }
 
   if (!newPassword || newPassword.length < 8) {
     throw new AppError("Password must be at least 8 characters.", 400);
   }
 
-  await authService.completeForceReset(authUser.id, authUser.partition, newPassword);
+  await authService.completeForceReset(authUser.id, authUser.partition, currentTemporaryPassword, newPassword);
   return sendSuccess(response, null, "Password reset complete.");
 }

@@ -27,6 +27,13 @@ export const setPasswordSchema = z.object({
   }),
 });
 
+export const completeForceResetSchema = z.object({
+  body: z.object({
+    currentTemporaryPassword: z.string().min(1, "Current temporary password is required."),
+    newPassword: z.string().min(8, "Password must be at least 8 characters."),
+  }),
+});
+
 export const changePasswordSchema = z.object({
   body: z.object({
     currentPassword: z.string().min(1, "Current password is required."),
