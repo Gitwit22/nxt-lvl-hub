@@ -6,6 +6,9 @@
  * that reference "@/context/OrgPortalContext" continue to resolve.
  *
  * New code should import from "@/context/OrgContext" directly.
+ * TODO(compat-removal): delete this file after callers migrate imports to:
+ * - OrgProvider from "@/context/OrgContext"
+ * - useOrg from "@/context/OrgContext"
  */
 export * from "@/context/OrgContext";
 

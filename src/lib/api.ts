@@ -769,6 +769,11 @@ export async function generateProgramTokenApi(programDomain: string): Promise<Pr
   return payload;
 }
 
+/**
+ * @deprecated Legacy compatibility helper.
+ * Replacement target: consume orgStatus from getOrgBootstrap instead of
+ * calling a portal-named status endpoint.
+ */
 export function getPortalStatus(slugOrSubdomain: string) {
   return apiRequest<PortalStatusResponse>(`/api/organization/portal-status?slug=${encodeURIComponent(slugOrSubdomain)}`);
 }
@@ -794,7 +799,10 @@ export interface OrgBootstrapResponse {
   };
 }
 
-/** @deprecated Use getOrgBootstrap instead */
+/**
+ * @deprecated Legacy compatibility alias.
+ * Replacement target: getOrgBootstrap (canonical org workspace bootstrap name).
+ */
 export type PortalBootstrapResponse = OrgBootstrapResponse;
 
 export function getOrgBootstrap(slug?: string) {
@@ -802,7 +810,10 @@ export function getOrgBootstrap(slug?: string) {
   return apiRequest<OrgBootstrapResponse>(`/api/orgs/bootstrap${qs}`);
 }
 
-/** @deprecated Use getOrgBootstrap instead */
+/**
+ * @deprecated Legacy compatibility alias.
+ * Replacement target: getOrgBootstrap (canonical org workspace bootstrap name).
+ */
 export function getPortalBootstrap(slug?: string) {
   return getOrgBootstrap(slug);
 }

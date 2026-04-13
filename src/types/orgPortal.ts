@@ -8,6 +8,8 @@ export const orgRoleLabels: Record<OrgRole, string> = {
   viewer: "Viewer",
 };
 
+// LEGACY COMPAT NAME: kept while existing imports still reference orgPortal types.
+// TODO(compat-removal): rename to OrgUserAccountStatus once orgPortal naming is fully retired.
 export type PortalUserAccountStatus = "active" | "invited" | "password_change_required" | "disabled";
 
 export type PortalProgramStatus = "active" | "beta" | "maintenance" | "coming-soon";
@@ -61,7 +63,11 @@ export interface Organization {
   faviconUrl?: string;
   bannerUrl?: string;
   backgroundUrl?: string;
+  // LEGACY COMPAT FIELD NAME: "portalTitle" maps to workspace header title text.
+  // TODO(compat-removal): replace with workspaceTitle after API/schema alignment.
   portalTitle?: string;
+  // LEGACY COMPAT FIELD NAME: currently maps to workspace landing intro copy.
+  // TODO(compat-removal): replace with workspaceWelcomeMessage after API/schema alignment.
   welcomeMessage: string;
   supportEmail: string;
   supportContactName: string;
