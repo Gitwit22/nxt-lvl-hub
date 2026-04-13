@@ -2048,10 +2048,12 @@ const KNOWN_PROGRAMS = [
 
 function SubscriptionsTab() {
   const { organizations } = useOrgPortal();
+  const { programs: catalogPrograms } = usePrograms();
   const [selectedOrgId, setSelectedOrgId] = useState<string>("");
   const [subs, setSubs] = useState<OrgSubscription[]>([]);
   const [loading, setLoading] = useState(false);
   const [editSub, setEditSub] = useState<OrgSubscription | null>(null);
+  const [editProgId, setEditProgId] = useState<string>("");
   const [editOpen, setEditOpen] = useState(false);
   const [form, setForm] = useState({ status: "inactive" as SubStatus, subscriptionSource: "manual", startsAt: "", endsAt: "", seatLimit: "", notes: "" });
   const [saving, setSaving] = useState(false);
@@ -2082,6 +2084,7 @@ function SubscriptionsTab() {
   const openEdit = (programId: string) => {
     const existing = subs.find((s) => s.programId === programId);
     setEditSub(existing ?? null);
+    setEditProgId(programId);
     setForm({
       status: existing?.status ?? "inactive",
       subscriptionSource: existing?.subscriptionSource ?? "manual",
@@ -2181,7 +2184,7 @@ function SubscriptionsTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {KNOWN_PROGRAMS.map((prog) => {
+                {(catalogPrograms.length > 0 ? catalogPrograms : KNOWN_PROGRAMS).map((prog) => {
                   const sub = subs.find((s) => s.programId === prog.id);
                   const statusKey = (sub?.status ?? "inactive") as SubStatus;
                   return (
@@ -2261,7 +2264,7 @@ function SubscriptionsTab() {
               <Label className="text-xs font-mono uppercase tracking-widest">Notes</Label>
               <Textarea className="mt-1 text-sm" rows={2} value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} />
             </div>
-            <Button className="w-full" disabled={saving} onClick={() => { const prog = KNOWN_PROGRAMS.find((p) => subs.some((s) => s.programId === p.id) || editSub?.programId === p.id); if (prog) void saveSub(prog.id); }}>
+            <Button className="w-full" disabled={saving || !editProgId} onClick={() => void saveSub(editProgId)}>
               {saving ? "Saving…" : "Save Subscription"}
             </Button>
           </div>

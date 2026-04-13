@@ -1,6 +1,9 @@
 import { Organization } from "@/types/orgPortal";
 
 export const SUITE_DOMAIN = "ntlops.com";
+// Both domains resolve to the same Hub deployment.
+const SUITE_DOMAINS = [SUITE_DOMAIN, "nltops.com"];
+
 export const RESERVED_PORTAL_SUBDOMAINS = new Set([
   "www",
   "app",
@@ -26,16 +29,20 @@ export const RESERVED_PORTAL_SUBDOMAINS = new Set([
 
 export function getOrganizationSlugFromHost(hostname: string) {
   const host = hostname.trim().toLowerCase().split(":")[0] || "";
-  if (!host || host === SUITE_DOMAIN) return null;
+  if (!host) return null;
 
-  const domainSuffix = `.${SUITE_DOMAIN}`;
-  if (!host.endsWith(domainSuffix)) return null;
+  for (const domain of SUITE_DOMAINS) {
+    if (host === domain) return null; // root domain — not an org subdomain
+    const domainSuffix = `.${domain}`;
+    if (host.endsWith(domainSuffix)) {
+      const subdomain = host.slice(0, -domainSuffix.length);
+      if (!subdomain || subdomain.includes(".")) return null;
+      if (RESERVED_PORTAL_SUBDOMAINS.has(subdomain)) return null;
+      return subdomain;
+    }
+  }
 
-  const subdomain = host.slice(0, -domainSuffix.length);
-  if (!subdomain || subdomain.includes(".")) return null;
-  if (RESERVED_PORTAL_SUBDOMAINS.has(subdomain)) return null;
-
-  return subdomain;
+  return null;
 }
 
 export function getOrgBasePath(orgSlug: string) {
