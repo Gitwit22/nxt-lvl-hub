@@ -555,11 +555,21 @@ export function normalizeProgram(record: ProgramRecord): Program {
   };
 }
 
+const DOMAIN_SUFFIXES_TO_STRIP = [".ntlops.com", ".nltops.com", ".ntlops.co", ".ntlopps.com"];
+
+function stripOrgDomainSuffix(value: string): string {
+  const lower = (value || "").toLowerCase();
+  for (const suffix of DOMAIN_SUFFIXES_TO_STRIP) {
+    if (lower.endsWith(suffix)) return lower.slice(0, -suffix.length);
+  }
+  return value;
+}
+
 export function normalizeOrganization(record: OrganizationRecord): Organization {
   const source = record as Partial<OrganizationRecord>;
   const now = new Date().toISOString();
-  const slug = source.slug || source.id || "organization";
-  const subdomain = source.subdomain || slug;
+  const slug = stripOrgDomainSuffix(source.slug || source.id || "organization");
+  const subdomain = stripOrgDomainSuffix(source.subdomain || slug);
   const name = source.name || "Organization";
   const initials = (source.logo || name)
     .split(/\s+/)

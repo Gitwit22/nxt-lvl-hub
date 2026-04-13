@@ -49,7 +49,7 @@ export function OrgPortalLayout() {
   const { orgSlug = "" } = useParams();
   const navigate = useNavigate();
   const { logout, me, mustChangePassword } = useAuth();
-  const { getOrganizationBySlug, getOrganizationBySubdomain, getOrgCurrentUser } = useOrgPortal();
+  const { getOrganizationBySlug, getOrganizationBySubdomain, getOrgCurrentUser, isLoading } = useOrgPortal();
 
   // Primary lookup: exact slug match
   let org = getOrganizationBySlug(orgSlug);
@@ -73,6 +73,16 @@ export function OrgPortalLayout() {
   }
 
   if (!org) {
+    if (isLoading) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-background">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            Loading portal…
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="mx-auto max-w-4xl p-8">
         <h1 className="text-xl font-semibold">Portal Not Found</h1>
