@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { programCatalogSeed } from "@/data/programCatalogSeed";
 import {
   createProgram as createProgramRecord,
@@ -9,7 +9,6 @@ import {
   updateProgram as updateProgramRecord,
 } from "@/lib/api";
 import { Program } from "@/types/program";
-import { useAuth } from "@/context/AuthContext";
 
 const PROGRAM_STORAGE_KEY = "nltops.programs";
 
@@ -52,9 +51,6 @@ const ProgramContext = createContext<ProgramContextType | undefined>(undefined);
 export function ProgramProvider({ children }: { children: React.ReactNode }) {
   const [programs, setPrograms] = useState<Program[]>(() => loadPrograms());
   const [isLoading, setIsLoading] = useState(true);
-  const { isAuthenticated } = useAuth();
-  // Track the last auth state so we only re-hydrate on the transition to true.
-  const prevAuthRef = useRef(isAuthenticated);
 
   const hydratePrograms = useCallback(async () => {
     setIsLoading(true);
@@ -98,16 +94,10 @@ export function ProgramProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Load on mount — GET /api/programs is public, no auth required.
   useEffect(() => {
-    const wasAuthenticated = prevAuthRef.current;
-    prevAuthRef.current = isAuthenticated;
-
-    // Always hydrate on first mount, and re-hydrate when auth transitions to true
-    // (e.g. after login) so the backend gets fresh programs with valid IDs.
-    if (isAuthenticated || !wasAuthenticated) {
-      void hydratePrograms();
-    }
-  }, [hydratePrograms, isAuthenticated]);
+    void hydratePrograms();
+  }, [hydratePrograms]);
 
   const addProgram = useCallback(async (data: Omit<Program, "id" | "createdAt" | "updatedAt">) => {
     const now = new Date().toISOString();

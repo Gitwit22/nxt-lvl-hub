@@ -1,261 +1,267 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
 import { SiteShell } from "@/components/public/SiteShell";
-import { SiteHero } from "@/components/public/SiteHero";
-import { AboutSection } from "@/components/public/AboutSection";
-import { FeaturedApps } from "@/components/public/FeaturedApps";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAuth } from "@/context/AuthContext";
-import { useOrg } from "@/context/OrgContext";
 import { usePrograms } from "@/context/ProgramContext";
-import { getErrorMessage } from "@/lib/api";
-import { getPublicAppCatalog } from "@/lib/appCatalog";
+import { ProgramLogo } from "@/components/ProgramLogo";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ExternalLink, Rocket, ArrowRight, Layers, Shield, Zap } from "lucide-react";
 
-type AuthMode = "signin" | "signup";
+// ─── Public program card ───────────────────────────────────────────────────────
 
-function resolveRedirectPath(
-  profile: { isPlatformAdmin: boolean; orgMemberships: Array<{ orgId: string; active: boolean }> },
-  getOrganizationById: (orgId: string) => { slug: string } | undefined,
-) {
-  if (profile.isPlatformAdmin) {
-    return "/admin/organizations";
+function PublicProgramCard({ program }: { program: ReturnType<typeof usePrograms>["programs"][number] }) {
+  const isComingSoon = program.status === "coming-soon";
+  const isLive = program.status === "live" || program.status === "beta";
+
+  function resolveColor(color?: string) {
+    if (!color) return undefined;
+    if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl")) return color;
+    return `hsl(${color})`;
   }
 
-  const primaryMembership = profile.orgMemberships.find((membership) => membership.active);
-  if (primaryMembership) {
-    const org = getOrganizationById(primaryMembership.orgId);
-    if (org?.slug) {
-      return `/orgs/${org.slug}`;
+  function handleLaunch() {
+    if (!isLive) return;
+
+    if (program.type === "external" && program.externalUrl) {
+      window.open(program.externalUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    if (program.internalRoute) {
+      const route = program.internalRoute;
+      const isExternal =
+        route.startsWith("http://") ||
+        route.startsWith("https://") ||
+        (!route.startsWith("/") && route.includes("."));
+      if (isExternal) {
+        window.open(`https://${route.replace(/^https?:\/\//, "")}`, "_blank", "noopener,noreferrer");
+      }
     }
   }
-
-  return "/home";
-}
-
-function MainPageAuthPanel() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [searchParams] = useSearchParams();
-  const { isAuthenticated, isInitializing, me, login, register } = useAuth();
-  const { getOrganizationById } = useOrg();
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const authParam = searchParams.get("auth");
-  const pathTab: AuthMode | null = location.pathname === "/site/create-account"
-    ? "signup"
-    : location.pathname === "/site/login"
-      ? "signin"
-      : null;
-  const tab: AuthMode = pathTab ?? (authParam === "signup" ? "signup" : "signin");
-
-  const returnTo = useMemo(() => {
-    const explicitReturnTo = searchParams.get("returnTo");
-    if (explicitReturnTo?.startsWith("/") && explicitReturnTo !== "/") {
-      return explicitReturnTo;
-    }
-
-    const stateFrom = (location.state as { from?: { pathname?: string; search?: string; hash?: string } } | null)?.from;
-    if (stateFrom?.pathname && stateFrom.pathname !== "/") {
-      return `${stateFrom.pathname}${stateFrom.search || ""}${stateFrom.hash || ""}`;
-    }
-
-    return "";
-  }, [location.state, searchParams]);
-
-  useEffect(() => {
-    const isAuthEntryRoute = Boolean(authParam) || pathTab !== null;
-    if (isInitializing || !isAuthenticated || !me || !isAuthEntryRoute) return;
-    const destination = returnTo || resolveRedirectPath(me, getOrganizationById);
-    navigate(destination, { replace: true });
-  }, [authParam, getOrganizationById, isAuthenticated, isInitializing, me, navigate, pathTab, returnTo]);
-
-  const setTab = (nextTab: string) => {
-    const params = new URLSearchParams(searchParams);
-    const returnToParam = params.get("returnTo");
-    const nextPath = nextTab === "signup" ? "/site/create-account" : "/site/login";
-    if (returnToParam) {
-      navigate(`${nextPath}?returnTo=${encodeURIComponent(returnToParam)}`, { replace: true });
-      return;
-    }
-    navigate(nextPath, { replace: true });
-  };
-
-  const submitAuth = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setErrorMessage("");
-
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail) {
-      setErrorMessage("Email is required.");
-      return;
-    }
-    if (!password) {
-      setErrorMessage("Password is required.");
-      return;
-    }
-    if (tab === "signup") {
-      if (password.length < 8) {
-        setErrorMessage("Password must be at least 8 characters.");
-        return;
-      }
-      if (password !== confirmPassword) {
-        setErrorMessage("Passwords do not match.");
-        return;
-      }
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      const profile = tab === "signin" ? await login(normalizedEmail, password) : await register(normalizedEmail, password);
-      const destination = returnTo || resolveRedirectPath(profile, getOrganizationById);
-      navigate(destination, { replace: true });
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   return (
-    <section className="mx-auto max-w-xl rounded-[1.5rem] border border-white/15 bg-slate-950/70 p-6 shadow-[0_20px_60px_rgba(8,15,30,0.45)] backdrop-blur-xl">
-      <p className="text-xs uppercase tracking-[0.22em] text-sky-100/80">Nxt Lvl Suites</p>
-      <h2 className="mt-2 text-2xl font-semibold text-white">{tab === "signin" ? "Sign in" : "Create your account"}</h2>
-      <p className="mt-2 text-sm text-slate-300">
-        {tab === "signin"
-          ? "Authenticate directly with the Suite to access your organization and applications."
-          : "Create a Suite account to get access to your organization workspace and assigned programs."}
-      </p>
+    <article
+      className="group flex h-full flex-col rounded-2xl border border-white/10 bg-slate-950/60 p-6 shadow-[0_16px_50px_rgba(8,15,30,0.3)] transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-400/30 hover:bg-slate-950/80"
+      style={program.accentColor ? { borderColor: resolveColor(program.accentColor) + "22" } : undefined}
+    >
+      <div className="flex items-start gap-4">
+        <ProgramLogo
+          name={program.name}
+          logoUrl={program.logoUrl}
+          accentColor={program.accentColor}
+          className="h-14 w-14 shrink-0 rounded-xl"
+          textClassName="text-lg"
+        />
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-white leading-tight">{program.name}</h3>
+          <p className="text-xs text-slate-400 mt-0.5">{program.category}</p>
+        </div>
+        {isComingSoon ? (
+          <Badge variant="outline" className="shrink-0 border-amber-400/30 text-amber-300 bg-amber-400/10 text-[10px]">
+            Coming Soon
+          </Badge>
+        ) : program.status === "beta" ? (
+          <Badge variant="outline" className="shrink-0 border-sky-400/30 text-sky-300 bg-sky-400/10 text-[10px]">
+            Beta
+          </Badge>
+        ) : null}
+      </div>
 
-      <Tabs value={tab} onValueChange={setTab} className="mt-6">
-        <TabsList className="grid w-full grid-cols-2 bg-slate-900/80">
-          <TabsTrigger value="signin">Sign In</TabsTrigger>
-          <TabsTrigger value="signup">Create Account</TabsTrigger>
-        </TabsList>
-        <TabsContent value={tab} className="mt-4">
-          <form onSubmit={submitAuth} className="space-y-4">
-            <div className="space-y-2">
-              <Label className="text-slate-200">Email</Label>
-              <Input
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@organization.com"
-                autoComplete="email"
-                className="bg-slate-900/70 text-slate-100"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-slate-200">Password</Label>
-              <div className="relative">
-                <Input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  autoComplete={tab === "signin" ? "current-password" : "new-password"}
-                  className="bg-slate-900/70 text-slate-100 pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
-                </button>
-              </div>
-            </div>
-            {tab === "signup" && (
-              <div className="space-y-2">
-                <Label className="text-slate-200">Confirm Password</Label>
-                <div className="relative">
-                  <Input
-                    type={showConfirmPassword ? "text" : "password"}
-                    value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
-                    autoComplete="new-password"
-                    className="bg-slate-900/70 text-slate-100 pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
-                    aria-label={showConfirmPassword ? "Hide password" : "Show password"}
-                  >
-                    {showConfirmPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
-                  </button>
-                </div>
-              </div>
-            )}
-            {errorMessage && <p className="text-sm text-red-300">{errorMessage}</p>}
-            <Button type="submit" disabled={isSubmitting} className="w-full">
-              {isSubmitting
-                ? tab === "signin"
-                  ? "Signing in..."
-                  : "Creating account..."
-                : tab === "signin"
-                  ? "Sign In"
-                  : "Create Account"}
-            </Button>
-            {tab === "signup" && (
-              <p className="rounded-lg border border-sky-300/20 bg-sky-500/10 px-3 py-2 text-xs leading-relaxed text-sky-100">
-                After your account is created, you can create an organization workspace
-                and invite users from your in-suite dashboard.
-              </p>
-            )}
-          </form>
-        </TabsContent>
-      </Tabs>
-    </section>
+      <p className="mt-4 flex-1 text-sm leading-relaxed text-slate-300">{program.shortDescription}</p>
+
+      {program.longDescription && program.longDescription !== program.shortDescription && (
+        <p className="mt-2 text-xs leading-relaxed text-slate-400 line-clamp-2">{program.longDescription}</p>
+      )}
+
+      {program.tags.length > 0 && (
+        <div className="mt-4 flex flex-wrap gap-1.5">
+          {program.tags.slice(0, 4).map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-400"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-5 border-t border-white/10 pt-4">
+        {isLive ? (
+          <Button onClick={handleLaunch} className="w-full gap-2" variant="outline">
+            {program.launchLabel || "Visit"}
+            <ExternalLink className="h-4 w-4" />
+          </Button>
+        ) : (
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <Rocket className="h-4 w-4" />
+            <span>Coming soon — stay tuned</span>
+          </div>
+        )}
+      </div>
+    </article>
   );
 }
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function PublicHomePage() {
-  const location = useLocation();
-  const [searchParams] = useSearchParams();
-  const { programs } = usePrograms();
-  const publicApps = useMemo(() => getPublicAppCatalog(programs), [programs]);
-  const featuredApps = publicApps.filter((app) => app.featured).slice(0, 3);
-  const showAuthPanel =
-    location.pathname === "/site/login" ||
-    location.pathname === "/site/create-account" ||
-    Boolean(searchParams.get("auth"));
+  const { programs, isLoading } = usePrograms();
+  const [filter, setFilter] = useState<"all" | "live" | "coming-soon">("all");
+
+  const publicPrograms = programs.filter((p) => p.isPublic && !p.adminOnly);
+
+  const filteredPrograms = publicPrograms.filter((p) => {
+    if (filter === "live") return p.status === "live" || p.status === "beta";
+    if (filter === "coming-soon") return p.status === "coming-soon";
+    return true;
+  });
+
+  const featuredPrograms = publicPrograms
+    .filter((p) => p.isFeatured && (p.status === "live" || p.status === "beta"))
+    .sort((a, b) => a.displayOrder - b.displayOrder)
+    .slice(0, 3);
 
   return (
     <SiteShell>
-      <div className="space-y-14">
-        {showAuthPanel && <MainPageAuthPanel />}
-        <SiteHero />
-        <AboutSection />
-        <FeaturedApps apps={featuredApps} />
+      {/* ── Home section ─────────────────────────────────────────────── */}
+      <section id="home" className="space-y-16 scroll-mt-24">
 
-        <section className="flex flex-col gap-5 rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-[0_16px_50px_rgba(8,15,30,0.28)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:p-8">
-          <div>
-            <p className="text-sm uppercase tracking-[0.24em] text-sky-100/70">Explore the full directory</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">Browse all available Suite apps and launch destinations</h2>
-            <p className="mt-2 max-w-2xl text-base leading-8 text-slate-300">
-              Search by app name, filter by access type, and inspect each app before launching it.
+        {/* Hero */}
+        <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.03] p-8 md:p-14 shadow-[0_18px_60px_rgba(8,15,30,0.4)] backdrop-blur-xl">
+          <div className="absolute -right-20 top-0 h-64 w-64 rounded-full bg-cyan-400/15 blur-3xl pointer-events-none" />
+          <div className="absolute -left-10 bottom-0 h-52 w-52 rounded-full bg-blue-500/15 blur-3xl pointer-events-none" />
+
+          <img
+            src="/3_banner.png"
+            alt="Nxt Lvl Suites banner"
+            className="relative mb-8 h-[180px] w-full rounded-2xl border border-white/10 object-cover sm:h-[220px] lg:h-[260px]"
+          />
+
+          <div className="relative space-y-4 max-w-2xl">
+            <span className="inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-300/10 px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-sky-100/85">
+              Nxt Lvl Technology Solutions
+            </span>
+            <h1 className="text-3xl font-bold tracking-tight text-white md:text-5xl">
+              Nxt Lvl Suites
+            </h1>
+            <p className="text-base leading-relaxed text-slate-300 md:text-lg">
+              A showcase of the tools, apps, and systems built by Nxt Lvl Technology Solutions.
+              Each program is purpose-built for specific operational needs — browse what's available
+              and launch directly to the program that fits your work.
             </p>
+            <a
+              href="#programs"
+              className="inline-flex items-center gap-2 rounded-xl bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-500/25 transition-colors hover:bg-sky-400"
+            >
+              Browse Programs <ArrowRight className="h-4 w-4" />
+            </a>
           </div>
+        </div>
 
-          <Button asChild size="lg">
-            <Link to="/apps">
-              View Full Directory <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-        </section>
-      </div>
+        {/* Value props */}
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+          {[
+            {
+              icon: Layers,
+              title: "Suite of Tools",
+              body: "Multiple purpose-built applications under one roof — each focused on a specific domain.",
+            },
+            {
+              icon: Zap,
+              title: "Direct Launch",
+              body: "Click a program and go. No suite account needed. Each app handles its own access.",
+            },
+            {
+              icon: Shield,
+              title: "Built for Operations",
+              body: "Designed for real nonprofit, business, and operations workflows — not generic software.",
+            },
+          ].map(({ icon: Icon, title, body }) => (
+            <div key={title} className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-sm">
+              <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-sky-400/20 bg-sky-400/10">
+                <Icon className="h-5 w-5 text-sky-300" />
+              </div>
+              <h3 className="mb-2 font-semibold text-white">{title}</h3>
+              <p className="text-sm leading-relaxed text-slate-400">{body}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Featured programs */}
+        {featuredPrograms.length > 0 && (
+          <div className="space-y-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-white">Featured Programs</h2>
+              <a href="#programs" className="flex items-center gap-1 text-sm text-sky-400 hover:text-sky-300">
+                View all <ArrowRight className="h-3.5 w-3.5" />
+              </a>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {featuredPrograms.map((p) => (
+                <PublicProgramCard key={p.id} program={p} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* About */}
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 md:p-10">
+          <h2 className="mb-4 text-xl font-semibold text-white">About Nxt Lvl Technology Solutions</h2>
+          <p className="max-w-3xl text-sm leading-8 text-slate-300">
+            Nxt Lvl Technology Solutions builds focused, operational software for organizations that need
+            purpose-built tools — not generic platforms. Each program in this suite addresses a distinct need:
+            from time tracking and billing to mission management and community documentation. Browse the
+            programs below and launch directly to the one that fits your workflow.
+          </p>
+        </div>
+      </section>
+
+      {/* ── Programs section ──────────────────────────────────────────── */}
+      <section id="programs" className="mt-20 scroll-mt-24 space-y-8">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-white">All Programs</h2>
+          <p className="mt-1 text-sm text-slate-400">
+            Browse available tools. Click "Visit" to go directly to any program's site.
+          </p>
+        </div>
+
+        {/* Filter tabs */}
+        <div className="flex flex-wrap gap-2">
+          {(["all", "live", "coming-soon"] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={[
+                "rounded-full border px-4 py-1.5 text-sm transition-colors",
+                filter === f
+                  ? "border-sky-400/50 bg-sky-400/15 text-sky-200"
+                  : "border-white/10 bg-white/5 text-slate-400 hover:border-white/20 hover:text-slate-200",
+              ].join(" ")}
+            >
+              {f === "all" ? "All" : f === "live" ? "Live" : "Coming Soon"}
+            </button>
+          ))}
+        </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center gap-3 py-16 text-slate-400">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
+            Loading programs…
+          </div>
+        ) : filteredPrograms.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-white/10 py-16 text-center text-slate-400">
+            No programs match the current filter.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {[...filteredPrograms]
+              .sort((a, b) => a.displayOrder - b.displayOrder)
+              .map((p) => (
+                <PublicProgramCard key={p.id} program={p} />
+              ))}
+          </div>
+        )}
+      </section>
     </SiteShell>
   );
 }

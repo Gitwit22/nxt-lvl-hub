@@ -18,7 +18,7 @@ export function ProtectedRoute({ requirePlatformAdmin = false }: ProtectedRouteP
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/site/login" state={{ from: location }} replace />;
+    return <Navigate to="/admin" state={{ from: location }} replace />;
   }
 
   if (requirePlatformAdmin && !isPlatformAdmin) {

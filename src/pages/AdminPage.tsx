@@ -2280,7 +2280,9 @@ interface AdminPageProps {
   section?: AdminSection;
 }
 
-export default function AdminPage({ section = "organizations" }: AdminPageProps) {
+export default function AdminPage({ section = "programs" }: AdminPageProps) {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
   const sectionLabels: Record<AdminSection, string> = {
     organizations: "Organization Management",
     programs: "Program Control Center",
@@ -2292,19 +2294,36 @@ export default function AdminPage({ section = "organizations" }: AdminPageProps)
     subscriptions: "Control which programs each organization can access.",
   };
 
+  const handleLogout = async () => {
+    await logout();
+    navigate("/admin", { replace: true });
+  };
+
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-6">
       <div className="metal-raised rounded-lg p-6 relative">
         <Screw className="absolute top-3 left-3" />
         <Screw className="absolute top-3 right-3" />
-        <p className="stamped-label text-[10px]">Nxt Lvl Suite Admin Panel</p>
-        <h1 className="font-mono text-xl font-bold tracking-tight">{sectionLabels[section]}</h1>
-        <img
-          src="/3_banner.png"
-          alt="Admin banner"
-          className="mt-3 h-24 w-full rounded-md border border-border/60 object-cover"
-        />
-        <p className="text-xs text-muted-foreground font-mono">{sectionDescriptions[section]}</p>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <p className="stamped-label text-[10px]">Nxt Lvl Suite Admin Panel</p>
+            <h1 className="font-mono text-xl font-bold tracking-tight">{sectionLabels[section]}</h1>
+            <img
+              src="/3_banner.png"
+              alt="Admin banner"
+              className="mt-3 h-24 w-full rounded-md border border-border/60 object-cover"
+            />
+            <p className="text-xs text-muted-foreground font-mono">{sectionDescriptions[section]}</p>
+          </div>
+          <div className="flex gap-2 shrink-0 mt-1">
+            <Button variant="outline" size="sm" asChild>
+              <a href="/" target="_blank" rel="noopener noreferrer">View Site</a>
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => void handleLogout()}>
+              Sign Out
+            </Button>
+          </div>
+        </div>
       </div>
 
       {section === "organizations" && <OrganizationsTab />}

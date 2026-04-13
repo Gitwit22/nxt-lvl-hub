@@ -1,7 +1,5 @@
 import type { ReactNode } from "react";
-import { Link, NavLink } from "react-router-dom";
-import { LogIn, ShieldCheck } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 function BrandMark() {
@@ -11,6 +9,11 @@ function BrandMark() {
     </div>
   );
 }
+
+const NAV_ITEMS = [
+  { href: "#home", label: "Home" },
+  { href: "#programs", label: "Programs" },
+];
 
 export function SiteShell({ children }: { children: ReactNode }) {
   return (
@@ -29,60 +32,32 @@ export function SiteShell({ children }: { children: ReactNode }) {
                 </div>
               </Link>
 
-              <div className="hidden items-center gap-1 md:flex">
-                {[
-                  { to: "/", label: "Home" },
-                  { to: "/apps", label: "Apps" },
-                ].map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={item.to === "/"}
-                    className={({ isActive }) =>
-                      cn(
-                        "rounded-full px-4 py-2 text-sm text-slate-300 transition-colors hover:text-white",
-                        isActive && "bg-white/10 text-white",
-                      )
-                    }
+              <nav className="hidden items-center gap-1 md:flex">
+                {NAV_ITEMS.map((item) => (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "rounded-full px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-white/10 hover:text-white",
+                    )}
                   >
                     {item.label}
-                  </NavLink>
+                  </a>
+                ))}
+              </nav>
+
+              {/* Mobile nav */}
+              <div className="flex items-center gap-2 md:hidden">
+                {NAV_ITEMS.map((item) => (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    className="rounded-full border border-white/10 px-3 py-2 text-sm text-slate-300 transition-colors hover:text-white"
+                  >
+                    {item.label}
+                  </a>
                 ))}
               </div>
-
-              <div className="flex items-center gap-2">
-                <Button asChild>
-                  <Link to="/site/login">
-                    <LogIn className="h-4 w-4" /> Sign In
-                  </Link>
-                </Button>
-                <Button asChild variant="outline" className="hidden sm:inline-flex">
-                  <Link to="/site/create-account">
-                    Create Account
-                  </Link>
-                </Button>
-              </div>
-            </div>
-
-            <div className="mt-3 flex items-center gap-2 md:hidden">
-              {[
-                { to: "/", label: "Home" },
-                { to: "/apps", label: "Apps" },
-              ].map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.to === "/"}
-                  className={({ isActive }) =>
-                    cn(
-                      "rounded-full border border-white/10 px-3 py-2 text-sm text-slate-300 transition-colors hover:text-white",
-                      isActive && "bg-white/10 text-white",
-                    )
-                  }
-                >
-                  {item.label}
-                </NavLink>
-              ))}
             </div>
           </div>
         </header>
@@ -95,12 +70,9 @@ export function SiteShell({ children }: { children: ReactNode }) {
               <p className="font-medium text-slate-200">Nxt Lvl Technology Solutions</p>
               <p>© {new Date().getFullYear()} Nxt Lvl Suites. All rights reserved.</p>
             </div>
-            <div className="flex items-center gap-4">
-              <a href="mailto:support@ntlops.com" className="hover:text-white">Support / Contact</a>
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-sky-100/80">
-                <ShieldCheck className="h-3.5 w-3.5" /> Public access with flexible Suite launch controls
-              </span>
-            </div>
+            <a href="mailto:support@ntlops.com" className="hover:text-white">
+              support@ntlops.com
+            </a>
           </div>
         </footer>
       </div>
