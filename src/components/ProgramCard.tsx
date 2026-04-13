@@ -5,8 +5,6 @@ import { ProgramLogo } from "@/components/ProgramLogo";
 import { ExternalLink, ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/context/AuthContext";
-import { generateProgramTokenApi } from "@/lib/api";
 
 interface ProgramCardProps {
   program: Program;
@@ -41,9 +39,7 @@ function hexToRgba(hex: string, opacityPercent: number) {
 
 export function ProgramCard({ program, compact }: ProgramCardProps) {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
   const [isHovered, setIsHovered] = useState(false);
-  const [isLaunching, setIsLaunching] = useState(false);
   const isLaunchable = program.status === "live" || program.status === "beta" || program.status === "internal";
   const baseCardOpacity = program.cardBackgroundOpacity ?? 0;
   const hoverTintOpacity = program.cardHoverTintOpacity ?? 0;
@@ -59,52 +55,23 @@ export function ProgramCard({ program, compact }: ProgramCardProps) {
     ? `${isHovered ? "0 0 0 1px" : "0 0 0 1px"} ${hexToRgba(resolvedGlowColor, Math.max(glowOpacity, 6))}, ${isHovered ? "0 0 36px" : "0 0 18px"} ${hexToRgba(resolvedGlowColor, Math.max(glowOpacity * 0.7, 8))}`
     : undefined;
 
-  const handleLaunch = async (e: React.MouseEvent) => {
+  const handleLaunch = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!isLaunchable || isLaunching) return;
-    setIsLaunching(true);
+    if (!isLaunchable) return;
 
-    try {
-      // Resolve the destination URL first
-      let destination: string | null = null;
+    if (program.type === "external" && program.externalUrl) {
+      window.open(program.externalUrl, program.openInNewTab ? "_blank" : "_self");
+      return;
+    }
 
-      if (program.type === "external" && program.externalUrl) {
-        destination = program.externalUrl;
-      } else if (program.internalRoute) {
-        const route = program.internalRoute;
-        const isExternal = route.startsWith("http://") || route.startsWith("https://") || (!route.startsWith("/") && route.includes("."));
-        if (isExternal) {
-          destination = `https://${route.replace(/^https?:\/\//, "")}`;
-        } else {
-          navigate(route);
-          return;
-        }
+    if (program.internalRoute) {
+      const route = program.internalRoute;
+      const isExternal = route.startsWith("http://") || route.startsWith("https://") || (!route.startsWith("/") && route.includes("."));
+      if (isExternal) {
+        window.open(`https://${route.replace(/^https?:\/\//, "")}`, program.openInNewTab ? "_blank" : "_self");
+      } else {
+        navigate(route);
       }
-
-      if (!destination) return;
-
-      // If authenticated and this is an external program app, obtain a
-      // program-scoped token so the app can bootstrap a real session.
-      if (isAuthenticated && program.slug) {
-        try {
-          const { token } = await generateProgramTokenApi(program.slug);
-          const url = new URL(destination);
-          url.pathname = url.pathname || "/";
-          // Append token to /launch so the program picks it up on entry.
-          const launchUrl = new URL("/launch", url.origin);
-          launchUrl.searchParams.set("token", token);
-          window.open(launchUrl.toString(), program.openInNewTab ? "_blank" : "_self");
-          return;
-        } catch {
-          // Token generation failed (e.g. no org context). Fall through to
-          // unauthenticated/demo open — the program will enter Demo Mode.
-        }
-      }
-
-      // Unauthenticated or token failed — open the app root; it will enter Demo Mode.
-      window.open(destination, program.openInNewTab ? "_blank" : "_self");
-    } finally {
-      setIsLaunching(false);
     }
   };
 
@@ -149,10 +116,8 @@ export function ProgramCard({ program, compact }: ProgramCardProps) {
           <span className="stamped-label text-[9px]">{program.category}</span>
           {isLaunchable ? (
             <button
-              onClick={(e) => { void handleLaunch(e); }}
-
-              disabled={isLaunching}
-              className="metal-button rounded px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-foreground hover:text-primary transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleLaunch}
+              className="metal-button rounded px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-foreground hover:text-primary transition-colors flex items-center gap-1"
             >
               {program.type === "external" ? (
                 <>Launch <ExternalLink className="h-2.5 w-2.5" /></>

@@ -1,10 +1,7 @@
-import { useState } from "react";
 import { SuiteProgram } from "@/types/orgPortal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowUpRight, Clock3, Wrench } from "lucide-react";
-import { generateProgramTokenApi } from "@/lib/api";
-import { useAuth } from "@/context/AuthContext";
 
 interface OrgProgramCardProps {
   program: SuiteProgram;
@@ -19,32 +16,11 @@ const statusClass: Record<SuiteProgram["status"], string> = {
 };
 
 export function OrgProgramCard({ program }: OrgProgramCardProps) {
-  const { isAuthenticated } = useAuth();
-  const [launching, setLaunching] = useState(false);
   const isLaunchable = program.status === "active" || program.status === "beta";
 
-  const launchProgram = async () => {
-    if (!isLaunchable || launching) return;
-    const isExternal = program.launchUrl.startsWith("http");
-
-    if (isExternal && isAuthenticated && program.programDomain) {
-      setLaunching(true);
-      try {
-        const { token } = await generateProgramTokenApi(program.programDomain);
-        const url = new URL(program.launchUrl);
-        url.pathname = "/launch";
-        url.searchParams.set("token", token);
-        window.open(url.toString(), "_blank", "noopener,noreferrer");
-      } catch {
-        // Token generation failed — fall back to opening without a token (demo mode)
-        window.open(program.launchUrl, "_blank", "noopener,noreferrer");
-      } finally {
-        setLaunching(false);
-      }
-      return;
-    }
-
-    if (isExternal) {
+  const launchProgram = () => {
+    if (!isLaunchable) return;
+    if (program.launchUrl.startsWith("http")) {
       window.open(program.launchUrl, "_blank", "noopener,noreferrer");
     } else {
       window.location.assign(program.launchUrl);
@@ -93,8 +69,8 @@ export function OrgProgramCard({ program }: OrgProgramCardProps) {
           <span className="text-xs text-muted-foreground">Ready to launch</span>
         )}
 
-        <Button size="sm" disabled={!isLaunchable || launching} onClick={() => void launchProgram()}>
-          <span>{launching ? "Launching…" : "Launch"}</span>
+        <Button size="sm" disabled={!isLaunchable} onClick={launchProgram}>
+          <span>Launch</span>
           <ArrowUpRight className="h-4 w-4" />
         </Button>
       </div>

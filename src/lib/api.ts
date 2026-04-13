@@ -744,30 +744,6 @@ export interface PortalStatusResponse {
   customDomain: string | null;
 }
 
-export interface ProgramTokenResponse {
-  token: string;
-  user: {
-    id: string;
-    email: string;
-    role: string;
-    organizationId: string;
-    organizationName?: string;
-    programDomain: string;
-  };
-}
-
-/**
- * Exchange the current Suite JWT for a program-scoped JWT.
- * Called by the Suite before opening a program app so the program can
- * bootstrap an authenticated session from its own perspective.
- */
-export async function generateProgramTokenApi(programDomain: string): Promise<ProgramTokenResponse> {
-  const payload = await apiRequest<ProgramTokenResponse>("/api/auth/program-token", {
-    method: "POST",
-    body: JSON.stringify({ programDomain }),
-  });
-  return payload;
-}
 
 /**
  * @deprecated Legacy compatibility helper.
