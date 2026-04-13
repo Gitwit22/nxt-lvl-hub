@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { RESERVED_PORTAL_SUBDOMAINS, getOrgPortalUrl } from "@/lib/orgRoutes";
+import { RESERVED_SUBDOMAINS, getOrgPortalUrl } from "@/lib/orgRoutes";
 const AVAILABLE_MODULES = ["announcements", "analytics", "messaging", "support", "billing"];
 
 type WizardStep = 1 | 2 | 3 | 4 | 5;
@@ -213,8 +213,8 @@ export function CreateOrganizationWizard({
         toast.error("A valid organization slug is required.");
         return false;
       }
-      if (RESERVED_PORTAL_SUBDOMAINS.has(subdomain)) {
-        toast.error("This slug is reserved and cannot be used for a portal hostname.");
+      if (RESERVED_SUBDOMAINS.has(subdomain)) {
+        toast.error("This slug is reserved and cannot be used as an org workspace URL.");
         return false;
       }
       if (!isSubdomainAvailable(subdomain)) {

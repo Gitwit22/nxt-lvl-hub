@@ -2,7 +2,7 @@ import { FormEvent, useState } from "react";
 import { useParams } from "react-router-dom";
 import { LogOut, Mail, ShieldCheck, User } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { useOrgPortal } from "@/context/OrgPortalContext";
+import { useOrg } from "@/context/OrgContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,7 +20,7 @@ const ROLE_LABELS: Record<string, string> = {
 export default function OrgAccountPage() {
   const { orgSlug = "" } = useParams();
   const { me, logout } = useAuth();
-  const { getOrganizationBySlug, getOrgCurrentUser } = useOrgPortal();
+  const { getOrganizationBySlug, getOrgCurrentUser } = useOrg();
 
   const org = getOrganizationBySlug(orgSlug);
   const currentUser = org ? getOrgCurrentUser(org.id) : undefined;
@@ -99,7 +99,7 @@ export default function OrgAccountPage() {
         <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">My Account</p>
         <h1 className="text-2xl font-semibold">Account & Security</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Your personal profile and password settings. These apply to your Suite login — not just this portal.
+          Your personal profile and password settings. These apply to your Suite login — not just this workspace.
         </p>
       </div>
 

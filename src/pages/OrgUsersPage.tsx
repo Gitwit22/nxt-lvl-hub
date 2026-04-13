@@ -1,6 +1,6 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { canManageUsers, useOrgPortal } from "@/context/OrgPortalContext";
+import { canManageUsers, useOrg } from "@/context/OrgContext";
 import { OrgRole } from "@/types/orgPortal";
 import { OrgUserTable } from "@/components/OrgUserTable";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,7 @@ export default function OrgUsersPage() {
     removeUser,
     resetUserPassword,
     updateUser,
-  } = useOrgPortal();
+  } = useOrg();
 
   const org = getOrganizationBySlug(orgSlug);
   const users = useMemo(() => (org ? getUsersForOrganization(org.id) : []), [getUsersForOrganization, org]);

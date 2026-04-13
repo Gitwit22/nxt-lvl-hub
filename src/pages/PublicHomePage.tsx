@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/context/AuthContext";
-import { useOrgPortal } from "@/context/OrgPortalContext";
+import { useOrg } from "@/context/OrgContext";
 import { usePrograms } from "@/context/ProgramContext";
 import { getErrorMessage } from "@/lib/api";
 import { getPublicAppCatalog } from "@/lib/appCatalog";
@@ -29,7 +29,7 @@ function resolveRedirectPath(
   if (primaryMembership) {
     const org = getOrganizationById(primaryMembership.orgId);
     if (org?.slug) {
-      return `/org/${org.slug}`;
+      return `/orgs/${org.slug}`;
     }
   }
 
@@ -41,7 +41,7 @@ function MainPageAuthPanel() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { isAuthenticated, isInitializing, me, login, register } = useAuth();
-  const { getOrganizationById } = useOrgPortal();
+  const { getOrganizationById } = useOrg();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -210,7 +210,7 @@ function MainPageAuthPanel() {
             </Button>
             {tab === "signup" && (
               <p className="rounded-lg border border-sky-300/20 bg-sky-500/10 px-3 py-2 text-xs leading-relaxed text-sky-100">
-                After your account is created, you can create an organization, launch your organization portal,
+                After your account is created, you can create an organization workspace
                 and invite users from your in-suite dashboard.
               </p>
             )}

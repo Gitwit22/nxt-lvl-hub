@@ -1,9 +1,11 @@
-import { Building2, Home, Info, LayoutGrid, LogOut, Users, CreditCard } from "lucide-react";
+import { Building2, Home, Info, LayoutGrid, LogOut, Users, CreditCard, Briefcase, ChevronRight } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/context/AuthContext";
+import { useOrg } from "@/context/OrgContext";
 import { useNavigate } from "react-router-dom";
 import { getErrorMessage } from "@/lib/api";
 import { toast } from "sonner";
+import { getOrgBasePath } from "@/lib/orgRoutes";
 import {
   Sidebar,
   SidebarContent,
@@ -19,9 +21,11 @@ import {
 
 export function AppSidebar() {
   const { state } = useSidebar();
-  const { isPlatformAdmin, logout } = useAuth();
+  const { isPlatformAdmin, logout, me } = useAuth();
+  const { organizations } = useOrg();
   const navigate = useNavigate();
   const collapsed = state === "collapsed";
+
   const navItems = [
     { title: "Home", url: "/home", icon: Home },
     { title: "Applications", url: "/applications", icon: LayoutGrid },
@@ -34,6 +38,12 @@ export function AppSidebar() {
       : []),
     { title: "About", url: "/about", icon: Info },
   ];
+
+  // Build list of orgs the current user is an active member of
+  const memberships = me?.orgMemberships ?? [];
+  const myOrgs = organizations.filter((org) =>
+    isPlatformAdmin || memberships.some((m) => m.orgId === org.id && m.active),
+  );
 
   const handleLogout = async () => {
     navigate("/", { replace: true });
@@ -59,6 +69,7 @@ export function AppSidebar() {
             </span>
           )}
         </div>
+
         <SidebarGroup>
           <SidebarGroupLabel className="stamped-label text-[9px]">Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -81,7 +92,42 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {myOrgs.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="stamped-label text-[9px]">
+              {collapsed ? "" : "My Organizations"}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {myOrgs.map((org) => (
+                  <SidebarMenuItem key={org.id}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={getOrgBasePath(org.slug)}
+                        end={false}
+                        className="hover:bg-sidebar-accent/50 font-mono text-xs tracking-wide"
+                        activeClassName="bg-sidebar-accent text-primary font-medium"
+                      >
+                        {org.logoUrl ? (
+                          <img src={org.logoUrl} alt={org.name} className="mr-2 h-4 w-4 rounded object-cover shrink-0" />
+                        ) : (
+                          <Briefcase className="mr-2 h-4 w-4 shrink-0" />
+                        )}
+                        {!collapsed && (
+                          <span className="truncate flex-1">{org.portalTitle || org.name}</span>
+                        )}
+                        {!collapsed && <ChevronRight className="ml-auto h-3 w-3 text-muted-foreground/50" />}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
+
       <SidebarFooter className="border-t border-border/70 knurled mt-auto">
         <SidebarMenu>
           <SidebarMenuItem>

@@ -773,7 +773,7 @@ export function getPortalStatus(slugOrSubdomain: string) {
   return apiRequest<PortalStatusResponse>(`/api/organization/portal-status?slug=${encodeURIComponent(slugOrSubdomain)}`);
 }
 
-export interface PortalBootstrapResponse {
+export interface OrgBootstrapResponse {
   organization: OrganizationRecord;
   branding: OrganizationRecord["branding"];
   membership: {
@@ -786,7 +786,7 @@ export interface PortalBootstrapResponse {
   } | null;
   enabledModules: string[];
   enabledPrograms: ProgramRecord[];
-  portalStatus: {
+  orgStatus: {
     status: string;
     isPending: boolean;
     isActive: boolean;
@@ -794,9 +794,17 @@ export interface PortalBootstrapResponse {
   };
 }
 
-export function getPortalBootstrap(slug?: string) {
+/** @deprecated Use getOrgBootstrap instead */
+export type PortalBootstrapResponse = OrgBootstrapResponse;
+
+export function getOrgBootstrap(slug?: string) {
   const qs = slug ? `?slug=${encodeURIComponent(slug)}` : "";
-  return apiRequest<PortalBootstrapResponse>(`/api/portal/bootstrap${qs}`);
+  return apiRequest<OrgBootstrapResponse>(`/api/orgs/bootstrap${qs}`);
+}
+
+/** @deprecated Use getOrgBootstrap instead */
+export function getPortalBootstrap(slug?: string) {
+  return getOrgBootstrap(slug);
 }
 
 export function listPrograms() {

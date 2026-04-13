@@ -1,6 +1,6 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { canManageUsers, useOrgPortal } from "@/context/OrgPortalContext";
+import { canManageUsers, useOrg } from "@/context/OrgContext";
 import { OrgRole, Organization } from "@/types/orgPortal";
 import { OrgUserTable } from "@/components/OrgUserTable";
 import { TempPasswordModal } from "@/components/TempPasswordModal";
@@ -42,7 +42,7 @@ function UsersTab({ org }: { org: Organization }) {
     removeUser,
     resetUserPassword,
     updateUser,
-  } = useOrgPortal();
+  } = useOrg();
 
   const users = useMemo(() => getUsersForOrganization(org.id), [getUsersForOrganization, org.id]);
   const [firstName, setFirstName] = useState("");
@@ -278,7 +278,7 @@ function UsersTab({ org }: { org: Organization }) {
 }
 
 function BrandingTab({ org }: { org: Organization }) {
-  const { getOrgCurrentUser, updateOrganization } = useOrgPortal();
+  const { getOrgCurrentUser, updateOrganization } = useOrg();
   const currentUser = getOrgCurrentUser(org.id);
   const canManage = currentUser ? canManageUsers(currentUser.role) : false;
 
@@ -319,7 +319,7 @@ function BrandingTab({ org }: { org: Organization }) {
     <div className="space-y-5">
       <section className="rounded-xl border border-border bg-card p-5">
         <h2 className="text-base font-semibold">Branding</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Update logo, banner, support contact, and brand colors for your portal.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Update logo, banner, support contact, and brand colors for your workspace.</p>
 
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
@@ -357,7 +357,7 @@ function BrandingTab({ org }: { org: Organization }) {
 }
 
 function SettingsTab({ org }: { org: Organization }) {
-  const { getOrgCurrentUser, updateOrganization } = useOrgPortal();
+  const { getOrgCurrentUser, updateOrganization } = useOrg();
   const currentUser = getOrgCurrentUser(org.id);
   const canManage = currentUser ? canManageUsers(currentUser.role) : false;
 
@@ -434,7 +434,7 @@ function SettingsTab({ org }: { org: Organization }) {
 
 export default function OrgOrganizationPage() {
   const { orgSlug = "" } = useParams();
-  const { getOrganizationBySlug } = useOrgPortal();
+  const { getOrganizationBySlug } = useOrg();
 
   const org = getOrganizationBySlug(orgSlug);
 
@@ -445,9 +445,9 @@ export default function OrgOrganizationPage() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Organization Portal</p>
+        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Organization Workspace</p>
         <h1 className="text-2xl font-semibold">Organization</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Manage users, branding, and settings for this portal.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Manage users, branding, and settings for this workspace.</p>
       </div>
 
       <Tabs defaultValue="users" className="space-y-4">

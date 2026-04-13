@@ -1,11 +1,11 @@
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { useOrgPortal } from "@/context/OrgPortalContext";
+import { useOrg } from "@/context/OrgContext";
 import { OrgProgramCard } from "@/components/OrgProgramCard";
 
 export default function OrgProgramsPage() {
   const { orgSlug = "" } = useParams();
-  const { getOrganizationBySlug, getUsersForOrganization, getOrganizationPrograms, getOrgCurrentUser, getProgramsForUser } = useOrgPortal();
+  const { getOrganizationBySlug, getUsersForOrganization, getOrganizationPrograms, getOrgCurrentUser, getProgramsForUser } = useOrg();
 
   const org = getOrganizationBySlug(orgSlug);
   const users = useMemo(() => (org ? getUsersForOrganization(org.id) : []), [getUsersForOrganization, org]);

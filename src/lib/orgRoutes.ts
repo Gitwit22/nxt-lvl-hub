@@ -4,7 +4,7 @@ export const SUITE_DOMAIN = "ntlops.com";
 // Both domains resolve to the same Hub deployment.
 const SUITE_DOMAINS = [SUITE_DOMAIN, "nltops.com"];
 
-export const RESERVED_PORTAL_SUBDOMAINS = new Set([
+export const RESERVED_SUBDOMAINS = new Set([
   "www",
   "app",
   "api",
@@ -37,7 +37,7 @@ export function getOrganizationSlugFromHost(hostname: string) {
     if (host.endsWith(domainSuffix)) {
       const subdomain = host.slice(0, -domainSuffix.length);
       if (!subdomain || subdomain.includes(".")) return null;
-      if (RESERVED_PORTAL_SUBDOMAINS.has(subdomain)) return null;
+      if (RESERVED_SUBDOMAINS.has(subdomain)) return null;
       return subdomain;
     }
   }
@@ -46,7 +46,7 @@ export function getOrganizationSlugFromHost(hostname: string) {
 }
 
 export function getOrgBasePath(orgSlug: string) {
-  return `/org/${orgSlug}`;
+  return `/orgs/${orgSlug}`;
 }
 
 export function getOrgProgramsPath(orgSlug: string) {
@@ -70,7 +70,7 @@ export function getOrgSettingsPath(orgSlug: string) {
 }
 
 export function getOrgPortalUrl(orgSlug: string) {
-  return `https://${SUITE_DOMAIN}${getOrgBasePath(orgSlug)}`;
+  return `https://nltops.com${getOrgBasePath(orgSlug)}`;
 }
 
 export function resolveOrgSlugFromHost(hostname: string, organizations: Organization[]) {

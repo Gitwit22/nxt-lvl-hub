@@ -4,14 +4,13 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/context/AuthContext";
-import { OrgPortalProvider } from "@/context/OrgPortalContext";
+import { OrgProvider } from "@/context/OrgContext";
 import { ProgramProvider } from "@/context/ProgramContext";
-import { OrgPortalLayout } from "@/components/OrgPortalLayout";
 import { AppLayout } from "@/components/AppLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { getOrganizationSlugFromHost, resolveOrgSlugFromHost } from "@/lib/orgRoutes";
+import { OrgAccessGuard } from "@/components/OrgAccessGuard";
 import { useAuth } from "@/context/AuthContext";
-import { useOrgPortal } from "@/context/OrgPortalContext";
+import { useOrg } from "@/context/OrgContext";
 import PublicHomePage from "@/pages/PublicHomePage";
 import PublicAppsPage from "@/pages/PublicAppsPage";
 import PublicAppDetailPage from "@/pages/PublicAppDetailPage";
@@ -30,8 +29,8 @@ import NotFound from "@/pages/NotFound";
 const queryClient = new QueryClient();
 
 function RootResolver() {
-  const { isLoading, organizations } = useOrgPortal();
-  const { isAuthenticated, isInitializing, isPlatformAdmin } = useAuth();
+  const { isLoading, organizations } = useOrg();
+  const { isAuthenticated, isInitializing, isPlatformAdmin, me } = useAuth();
 
   if (isInitializing || isLoading) {
     return (
@@ -44,12 +43,6 @@ function RootResolver() {
     );
   }
 
-  const subdomainOrgSlug = resolveOrgSlugFromHost(window.location.hostname, organizations);
-
-  if (subdomainOrgSlug) {
-    return <Navigate to={`/org/${subdomainOrgSlug}`} replace />;
-  }
-
   if (!isAuthenticated) {
     return <Navigate to="/site/login" replace />;
   }
@@ -58,31 +51,17 @@ function RootResolver() {
     return <Navigate to="/admin/organizations" replace />;
   }
 
+  // Route org members directly to their workspace
+  const memberships = me?.orgMemberships ?? [];
+  const activeOrg = memberships.find((m) => m.active);
+  if (activeOrg) {
+    const org = organizations.find((o) => o.id === activeOrg.orgId);
+    if (org) {
+      return <Navigate to={`/orgs/${org.slug}`} replace />;
+    }
+  }
+
   return <Navigate to="/home" replace />;
-}
-
-function HomeEntry() {
-  const { isLoading, organizations } = useOrgPortal();
-
-  if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          Loading workspace...
-        </div>
-      </div>
-    );
-  }
-
-  const subdomain = getOrganizationSlugFromHost(window.location.hostname);
-  const orgSlug = resolveOrgSlugFromHost(window.location.hostname, organizations);
-
-  if (subdomain && orgSlug) {
-    return <Navigate to={`/org/${orgSlug}`} replace />;
-  }
-
-  return <PublicHomePage />;
 }
 
 const App = () => (
@@ -90,12 +69,12 @@ const App = () => (
     <TooltipProvider>
       <AuthProvider>
         <ProgramProvider>
-          <OrgPortalProvider>
+          <OrgProvider>
             <Toaster />
             <Sonner />
             <BrowserRouter>
               <Routes>
-                <Route path="/" element={<HomeEntry />} />
+                <Route path="/" element={<PublicHomePage />} />
                 <Route path="/site/login" element={<PublicHomePage />} />
                 <Route path="/site/create-account" element={<PublicHomePage />} />
                 <Route path="/apps" element={<PublicAppsPage />} />
@@ -116,6 +95,14 @@ const App = () => (
                     <Route path="/workspace/:appSlug" element={<AppWorkspacePage />} />
                     <Route path="/about" element={<AboutPage />} />
 
+                    {/* Org workspace routes — membership enforced by OrgAccessGuard */}
+                    <Route element={<OrgAccessGuard />}>
+                      <Route path="/orgs/:orgSlug" element={<OrgLandingPage />} />
+                      <Route path="/orgs/:orgSlug/programs" element={<OrgProgramsPage />} />
+                      <Route path="/orgs/:orgSlug/account" element={<OrgAccountPage />} />
+                      <Route path="/orgs/:orgSlug/organization" element={<OrgOrganizationPage />} />
+                    </Route>
+
                     <Route element={<ProtectedRoute requirePlatformAdmin />}>
                       <Route path="/admin" element={<Navigate to="/admin/organizations" replace />} />
                       <Route path="/admin/organizations" element={<AdminPage section="organizations" />} />
@@ -125,23 +112,24 @@ const App = () => (
                   </Route>
                 </Route>
 
-                <Route element={<ProtectedRoute />}>
-                  <Route path="/org/:orgSlug" element={<OrgPortalLayout />}>
-                    <Route index element={<OrgLandingPage />} />
-                    <Route path="programs" element={<OrgProgramsPage />} />
-                    <Route path="account" element={<OrgAccountPage />} />
-                    <Route path="organization" element={<OrgOrganizationPage />} />
-                  </Route>
-                </Route>
+                {/* Legacy org portal URL redirects */}
+                <Route path="/org/:orgSlug" element={<OrgSlugRedirect />} />
+                <Route path="/org/:orgSlug/*" element={<OrgSlugRedirect />} />
 
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
-          </OrgPortalProvider>
+          </OrgProvider>
         </ProgramProvider>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
+
+function OrgSlugRedirect() {
+  // Redirect old /org/:orgSlug paths to new /orgs/:orgSlug
+  const path = window.location.pathname.replace(/^\/org\//, "/orgs/");
+  return <Navigate to={path} replace />;
+}
 
 export default App;

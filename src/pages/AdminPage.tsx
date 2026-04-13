@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePrograms } from "@/context/ProgramContext";
-import { useOrgPortal } from "@/context/OrgPortalContext";
+import { useOrg } from "@/context/OrgContext";
 import { useAuth } from "@/context/AuthContext";
 import {
   getErrorMessage,
@@ -699,7 +699,7 @@ function OrganizationsTab() {
     updateOrganization,
     setOrganizationPrograms,
     isSubdomainAvailable,
-  } = useOrgPortal();
+  } = useOrg();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<OrganizationStatus | "all">("all");
@@ -1066,8 +1066,8 @@ function OrganizationsTab() {
           <div className="md:col-span-2 rounded-xl border border-border p-4">
             <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Branding Preview</p>
             <div className="rounded-lg px-4 py-6" style={{ background: gradientCss(wizardState.primaryColor, wizardState.accentColor, 120) }}>
-              <p className="text-white text-sm font-semibold">{wizardState.name || "Organization Portal"}</p>
-              <p className="text-white/80 text-xs">Branded portal header preview</p>
+              <p className="text-white text-sm font-semibold">{wizardState.name || "Organization Workspace"}</p>
+              <p className="text-white/80 text-xs">Branded workspace header preview</p>
             </div>
           </div>
         </div>
@@ -1743,15 +1743,15 @@ function DomainPanel({
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-border p-4 space-y-2">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">Canonical Portal URL</p>
+        <p className="text-xs uppercase tracking-wider text-muted-foreground">Workspace URL</p>
         <div className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-sm font-mono break-all">{portalUrl}</div>
-        <p className="text-xs text-muted-foreground">This is the direct link for this organization's portal. Share it with org admins and members.</p>
+        <p className="text-xs text-muted-foreground">This is the direct link for this organization's workspace. Share it with org admins and members.</p>
       </div>
 
       <div className="rounded-lg border border-border p-4 text-sm space-y-1">
         <p className="font-medium">Slug</p>
         <p className="text-muted-foreground font-mono">{org.slug}</p>
-        <p className="text-xs text-muted-foreground mt-1">To change the slug, update it in the Settings tab — the portal URL updates automatically.</p>
+        <p className="text-xs text-muted-foreground mt-1">To change the slug, update it in the Settings tab — the workspace URL updates automatically.</p>
       </div>
 
       <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
@@ -2047,7 +2047,7 @@ const KNOWN_PROGRAMS = [
 ];
 
 function SubscriptionsTab() {
-  const { organizations } = useOrgPortal();
+  const { organizations } = useOrg();
   const { programs: catalogPrograms } = usePrograms();
   const [selectedOrgId, setSelectedOrgId] = useState<string>("");
   const [subs, setSubs] = useState<OrgSubscription[]>([]);

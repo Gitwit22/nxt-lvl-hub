@@ -1,6 +1,6 @@
 import { FormEvent, useState } from "react";
 import { useParams } from "react-router-dom";
-import { canManageUsers, useOrgPortal } from "@/context/OrgPortalContext";
+import { canManageUsers, useOrg } from "@/context/OrgContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +15,7 @@ export default function OrgSettingsPage() {
     bundles,
     getOrgCurrentUser,
     updateOrganization,
-  } = useOrgPortal();
+  } = useOrg();
 
   const org = getOrganizationBySlug(orgSlug);
 

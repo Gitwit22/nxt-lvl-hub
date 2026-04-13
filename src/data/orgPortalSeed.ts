@@ -81,7 +81,7 @@ export const organizations: Organization[] = [
     logoUrl: "",
     bannerUrl: "",
     welcomeMessage:
-      "Welcome back. Your portal is the launch point for every Nxt Lvl Suite workspace assigned to your organization.",
+      "Welcome back. Your workspace is the launch point for every Nxt Lvl Suite app assigned to your organization.",
     supportEmail: "support@ntlops.com",
     supportContactName: "Nxt Lvl Suite Support",
     phoneNumber: "(313) 555-0110",
@@ -125,7 +125,7 @@ export const organizations: Organization[] = [
     logoUrl: "",
     bannerUrl: "",
     welcomeMessage:
-      "This portal controls your organization-level user access and assigned programs across Nxt Lvl Suite.",
+      "This workspace controls your organization-level user access and assigned programs across Nxt Lvl Suite.",
     supportEmail: "it@riverfrontoutreach.org",
     supportContactName: "Riverfront IT Coordinator",
     phoneNumber: "(734) 555-0177",

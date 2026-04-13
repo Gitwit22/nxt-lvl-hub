@@ -247,7 +247,7 @@ export function OrganizationBrandingSettings({ org, onSave }: OrganizationBrandi
           }}
         >
           <p className="text-sm font-semibold">{portalTitle || org.name}</p>
-          <p className="text-xs text-white/80">{welcomeMessage || "Welcome to your organization portal."}</p>
+          <p className="text-xs text-white/80">{welcomeMessage || "Welcome to your organization workspace."}</p>
           <div className="mt-3 h-8 w-8 rounded-md" style={{ background: gradientCss(primaryColor, accentColor) }} />
         </div>
       </div>
