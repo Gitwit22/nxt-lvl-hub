@@ -9,16 +9,18 @@ import {
 import { validateRequest } from "../middleware/validate-request.js";
 import { createProgramSchema, listProgramsSchema, updateProgramSchema } from "../validators/program.validators.js";
 import { asyncHandler } from "../utils/async-handler.js";
-import { authMiddleware } from "../middleware/auth.js";
+import { authMiddleware, optionalAuthMiddleware } from "../middleware/auth.js";
 import { rateLimitMiddleware } from "../middleware/rate-limit.js";
 
 export const programRouter = Router();
 
 programRouter.use(rateLimitMiddleware);
-programRouter.use(authMiddleware);
 
-programRouter.get("/programs", validateRequest(listProgramsSchema), asyncHandler(listPrograms));
-programRouter.get("/programs/:id", asyncHandler(getProgram));
-programRouter.post("/programs", validateRequest(createProgramSchema), asyncHandler(createProgram));
-programRouter.put("/programs/:id", validateRequest(updateProgramSchema), asyncHandler(updateProgram));
-programRouter.delete("/programs/:id", asyncHandler(deleteProgram));
+// Public read endpoints — unauthenticated requests receive only public/non-admin programs.
+programRouter.get("/programs", optionalAuthMiddleware, validateRequest(listProgramsSchema), asyncHandler(listPrograms));
+programRouter.get("/programs/:id", optionalAuthMiddleware, asyncHandler(getProgram));
+
+// Protected mutation endpoints — require a valid Bearer token.
+programRouter.post("/programs", authMiddleware, validateRequest(createProgramSchema), asyncHandler(createProgram));
+programRouter.put("/programs/:id", authMiddleware, validateRequest(updateProgramSchema), asyncHandler(updateProgram));
+programRouter.delete("/programs/:id", authMiddleware, asyncHandler(deleteProgram));

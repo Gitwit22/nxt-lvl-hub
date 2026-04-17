@@ -14,7 +14,7 @@ type ApiRecord = Record<string, unknown>;
 
 const DEFAULT_HOSTED_API_BASE_URL = "https://community-chronicle.onrender.com";
 const COMPAT_PLATFORM_ADMIN_EMAILS = new Set([
-  "nxtlvltechllc@gmail.com",
+  "admin@example.com",
   "itstheplugllc@gmail.com",
 ]);
 

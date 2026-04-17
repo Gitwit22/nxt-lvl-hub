@@ -105,7 +105,7 @@ function PublicProgramCard({ program }: { program: ReturnType<typeof usePrograms
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PublicHomePage() {
-  const { programs, isLoading } = usePrograms();
+  const { programs, isLoading, catalogError } = usePrograms();
   const [filter, setFilter] = useState<"all" | "live" | "coming-soon">("all");
 
   const publicPrograms = programs.filter((p) => p.isPublic && !p.adminOnly);
@@ -247,6 +247,11 @@ export default function PublicHomePage() {
           <div className="flex items-center justify-center gap-3 py-16 text-slate-400">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
             Loading programs…
+          </div>
+        ) : catalogError ? (
+          <div className="rounded-2xl border border-dashed border-red-400/20 bg-red-400/5 py-16 text-center">
+            <p className="text-base font-medium text-red-300">Unable to load programs</p>
+            <p className="mt-2 text-sm text-slate-400">The programs catalog could not be reached. Please try again later.</p>
           </div>
         ) : filteredPrograms.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-white/10 py-16 text-center text-slate-400">

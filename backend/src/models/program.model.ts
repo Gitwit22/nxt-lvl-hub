@@ -50,6 +50,8 @@ export interface ProgramFilters {
   tags?: string[];
   featured?: boolean;
   organizationId?: string;
+  /** When true, only records with isPublic=true and adminOnly=false are returned. */
+  publicOnly?: boolean;
 }
 
 export type ProgramInput = Omit<ProgramRecord, "id" | "slug" | "createdAt" | "updatedAt" | "deletedAt"> & {

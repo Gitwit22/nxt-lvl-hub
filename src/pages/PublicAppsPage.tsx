@@ -6,7 +6,7 @@ import { usePrograms } from "@/context/ProgramContext";
 import { getPublicAppCatalog } from "@/lib/appCatalog";
 
 export default function PublicAppsPage() {
-  const { programs } = usePrograms();
+  const { programs, catalogError } = usePrograms();
   const apps = useMemo(() => getPublicAppCatalog(programs), [programs]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
@@ -46,7 +46,12 @@ export default function PublicAppsPage() {
           categories={categories}
         />
 
-        {filteredApps.length > 0 ? (
+        {catalogError ? (
+          <section className="rounded-[2rem] border border-dashed border-red-400/20 bg-red-400/5 p-10 text-center">
+            <p className="text-lg font-medium text-red-300">Unable to load apps</p>
+            <p className="mt-2 text-sm text-slate-400">The app catalog could not be reached. Please try again later.</p>
+          </section>
+        ) : filteredApps.length > 0 ? (
           <AppGrid apps={filteredApps} />
         ) : (
           <section className="rounded-[2rem] border border-dashed border-white/15 bg-slate-950/50 p-10 text-center">

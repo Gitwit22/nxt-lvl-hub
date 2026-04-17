@@ -1,5 +1,4 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { programCatalogSeed } from "@/data/programCatalogSeed";
 import {
   createProgram as createProgramRecord,
   deleteProgram as deleteProgramRecord,
@@ -12,34 +11,15 @@ import { Program } from "@/types/program";
 
 const PROGRAM_STORAGE_KEY = "nltops.programs";
 
-function loadPrograms(): Program[] {
-  const raw = localStorage.getItem(PROGRAM_STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw) as Program[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
 function savePrograms(programs: Program[]) {
   localStorage.setItem(PROGRAM_STORAGE_KEY, JSON.stringify(programs));
-}
-
-function getDefaultPrograms(): Program[] {
-  const now = new Date().toISOString();
-
-  return programCatalogSeed.map((program) => ({
-    ...program,
-    createdAt: now,
-    updatedAt: now,
-  }));
 }
 
 interface ProgramContextType {
   programs: Program[];
   isLoading: boolean;
+  /** Set when the API call fails and live data could not be fetched. */
+  catalogError: Error | null;
   addProgram: (program: Omit<Program, "id" | "createdAt" | "updatedAt">) => Promise<void>;
   updateProgram: (id: string, updates: Partial<Program>) => Promise<void>;
   deleteProgram: (id: string) => Promise<void>;
@@ -49,52 +29,28 @@ interface ProgramContextType {
 const ProgramContext = createContext<ProgramContextType | undefined>(undefined);
 
 export function ProgramProvider({ children }: { children: React.ReactNode }) {
-  const [programs, setPrograms] = useState<Program[]>(() => loadPrograms());
+  const [programs, setPrograms] = useState<Program[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState<Error | null>(null);
 
   const hydratePrograms = useCallback(async () => {
     setIsLoading(true);
+    setCatalogError(null);
 
     try {
       const records = await listPrograms();
-
-      if (records.length === 0) {
-        const legacyPrograms = loadPrograms();
-        const fallbackPrograms = legacyPrograms.length > 0 ? legacyPrograms : getDefaultPrograms();
-
-        if (fallbackPrograms.length > 0) {
-          // Seed programs one-by-one so a single failure doesn't block the rest.
-          await Promise.allSettled(
-            fallbackPrograms.map((program) =>
-              createProgramRecord(toProgramMutationInput(program)).catch((err) => {
-                console.warn("[programs] Seed create failed for", program.id, err);
-              }),
-            ),
-          );
-          const seededRecords = await listPrograms();
-          const normalizedPrograms = seededRecords.map(normalizeProgram);
-          setPrograms(normalizedPrograms);
-          savePrograms(normalizedPrograms);
-        } else {
-          setPrograms([]);
-        }
-      } else {
-        const normalizedPrograms = records.map(normalizeProgram);
-        setPrograms(normalizedPrograms);
-        savePrograms(normalizedPrograms);
-      }
+      const normalizedPrograms = records.map(normalizeProgram);
+      setPrograms(normalizedPrograms);
     } catch (error) {
-      console.error("Failed to load programs from API.", error);
-      const fallbackPrograms = loadPrograms();
-      const nextPrograms = fallbackPrograms.length > 0 ? fallbackPrograms : getDefaultPrograms();
-      setPrograms(nextPrograms);
-      savePrograms(nextPrograms);
+      console.error("[programs] Failed to load programs from API.", error);
+      setCatalogError(error instanceof Error ? error : new Error("Failed to load programs."));
+      setPrograms([]);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // Load on mount — GET /api/programs is public, no auth required.
+  // GET /api/programs is public — no auth required for published programs.
   useEffect(() => {
     void hydratePrograms();
   }, [hydratePrograms]);
@@ -182,7 +138,7 @@ export function ProgramProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <ProgramContext.Provider value={{ programs, isLoading, addProgram, updateProgram, deleteProgram, getProgram }}>
+    <ProgramContext.Provider value={{ programs, isLoading, catalogError, addProgram, updateProgram, deleteProgram, getProgram }}>
       {children}
     </ProgramContext.Provider>
   );

@@ -12,6 +12,10 @@ export class ProgramService {
     return programs
       .filter((program) => !program.deletedAt)
       .filter((program) => {
+        if (filters.publicOnly && (!program.isPublic || program.adminOnly)) {
+          return false;
+        }
+
         if (filters.organizationId && program.organizationId !== filters.organizationId) {
           return false;
         }

@@ -3,12 +3,9 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/context/AuthContext";
 import { ProgramProvider } from "@/context/ProgramContext";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
 import PublicHomePage from "@/pages/PublicHomePage";
-import AdminLoginPage from "@/pages/AdminLoginPage";
-import AdminPage from "@/pages/AdminPage";
+import AdminProgramsPage from "@/pages/AdminProgramsPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -16,45 +13,39 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <AuthProvider>
-        <ProgramProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              {/* ── Public showcase ─────────────────────────────────── */}
-              <Route path="/" element={<PublicHomePage />} />
+      <ProgramProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            {/* ── Public showcase ─────────────────────────────────── */}
+            <Route path="/" element={<PublicHomePage />} />
 
-              {/* ── Hidden admin entry ──────────────────────────────── */}
-              <Route path="/admin" element={<AdminLoginPage />} />
+            {/* ── Admin program management ─────────────────────────── */}
+            <Route path="/admin" element={<AdminProgramsPage />} />
+            <Route path="/admin/programs" element={<AdminProgramsPage />} />
 
-              {/* ── Protected admin program management ──────────────── */}
-              <Route element={<ProtectedRoute requirePlatformAdmin />}>
-                <Route path="/admin/programs" element={<AdminPage section="programs" />} />
-              </Route>
+            {/* ── Legacy URL redirects ─────────────────────────────── */}
+            <Route path="/site/login" element={<Navigate to="/" replace />} />
+            <Route path="/site/create-account" element={<Navigate to="/" replace />} />
+            <Route path="/login" element={<Navigate to="/" replace />} />
+            <Route path="/signin" element={<Navigate to="/" replace />} />
+            <Route path="/apps" element={<Navigate to="/" replace />} />
+            <Route path="/apps/:appSlug" element={<Navigate to="/" replace />} />
+            <Route path="/home" element={<Navigate to="/" replace />} />
+            <Route path="/dashboard" element={<Navigate to="/" replace />} />
+            <Route path="/app" element={<Navigate to="/" replace />} />
+            <Route path="/orgs/:orgSlug" element={<Navigate to="/" replace />} />
+            <Route path="/orgs/:orgSlug/*" element={<Navigate to="/" replace />} />
+            <Route path="/org/:orgSlug" element={<Navigate to="/" replace />} />
+            <Route path="/org/:orgSlug/*" element={<Navigate to="/" replace />} />
+            <Route path="/admin/organizations" element={<Navigate to="/admin/programs" replace />} />
+            <Route path="/admin/subscriptions" element={<Navigate to="/admin/programs" replace />} />
 
-              {/* ── Legacy URL redirects ─────────────────────────────── */}
-              <Route path="/site/login" element={<Navigate to="/" replace />} />
-              <Route path="/site/create-account" element={<Navigate to="/" replace />} />
-              <Route path="/login" element={<Navigate to="/" replace />} />
-              <Route path="/signin" element={<Navigate to="/" replace />} />
-              <Route path="/apps" element={<Navigate to="/" replace />} />
-              <Route path="/apps/:appSlug" element={<Navigate to="/" replace />} />
-              <Route path="/home" element={<Navigate to="/" replace />} />
-              <Route path="/dashboard" element={<Navigate to="/" replace />} />
-              <Route path="/app" element={<Navigate to="/" replace />} />
-              <Route path="/orgs/:orgSlug" element={<Navigate to="/" replace />} />
-              <Route path="/orgs/:orgSlug/*" element={<Navigate to="/" replace />} />
-              <Route path="/org/:orgSlug" element={<Navigate to="/" replace />} />
-              <Route path="/org/:orgSlug/*" element={<Navigate to="/" replace />} />
-              <Route path="/admin/organizations" element={<Navigate to="/admin/programs" replace />} />
-              <Route path="/admin/subscriptions" element={<Navigate to="/admin/programs" replace />} />
-
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </ProgramProvider>
-      </AuthProvider>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </ProgramProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
