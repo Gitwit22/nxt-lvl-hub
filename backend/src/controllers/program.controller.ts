@@ -10,7 +10,6 @@ function getRouteId(value: string | string[] | undefined) {
 
 export async function listPrograms(request: Request, response: Response) {
   const partitionKey = getRequestPartition(request);
-  const isAuthenticated = !!request.authUser;
 
   const programs = await programService.list(partitionKey, {
     search: typeof request.query.search === "string" ? request.query.search : undefined,
@@ -19,7 +18,7 @@ export async function listPrograms(request: Request, response: Response) {
     tags: Array.isArray(request.query.tags) ? (request.query.tags as string[]) : undefined,
     featured: typeof request.query.featured === "boolean" ? request.query.featured : undefined,
     organizationId: typeof request.query.organizationId === "string" ? request.query.organizationId : undefined,
-    publicOnly: !isAuthenticated,
+    publicOnly: true,
   });
 
   return sendSuccess(response, programs, "Programs retrieved.");
@@ -27,10 +26,9 @@ export async function listPrograms(request: Request, response: Response) {
 
 export async function getProgram(request: Request, response: Response) {
   const partitionKey = getRequestPartition(request);
-  const isAuthenticated = !!request.authUser;
   const program = await programService.getById(partitionKey, getRouteId(request.params.id));
 
-  if (!isAuthenticated && (!program.isPublic || program.adminOnly)) {
+  if (!program.isPublic || program.adminOnly) {
     throw new AppError("Program not found.", 404);
   }
 
