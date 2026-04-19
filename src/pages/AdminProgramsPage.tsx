@@ -22,7 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 type ProgramFormState = {
@@ -89,9 +89,10 @@ function makeProgramPayload(form: ProgramFormState, existingCount: number): Omit
 }
 
 export default function AdminProgramsPage() {
-  const { programs, isLoading, addProgram, deleteProgram } = usePrograms();
+  const { programs, isLoading, addProgram, updateProgram, deleteProgram } = usePrograms();
 
   const [form, setForm] = useState<ProgramFormState>(DEFAULT_FORM);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -99,6 +100,24 @@ export default function AdminProgramsPage() {
     () => [...programs].sort((left, right) => left.displayOrder - right.displayOrder),
     [programs],
   );
+
+  const resetForm = () => {
+    setForm(DEFAULT_FORM);
+    setEditingId(null);
+  };
+
+  const onStartEdit = (program: Program) => {
+    setEditingId(program.id);
+    setForm({
+      name: program.name,
+      shortDescription: program.shortDescription,
+      category: program.category,
+      status: program.status,
+      type: program.type,
+      launchPath: program.type === "external" ? program.externalUrl || "" : program.internalRoute || "",
+      tags: program.tags.join(", "),
+    });
+  };
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -115,9 +134,42 @@ export default function AdminProgramsPage() {
 
     setIsSaving(true);
     try {
-      await addProgram(makeProgramPayload(form, programs.length));
-      toast.success("Program added.");
-      setForm(DEFAULT_FORM);
+      if (editingId) {
+        const current = programs.find((program) => program.id === editingId);
+        if (!current) {
+          toast.error("Program not found.");
+          return;
+        }
+
+        const next = makeProgramPayload(form, current.displayOrder - 1);
+        await updateProgram(editingId, {
+          ...next,
+          displayOrder: current.displayOrder,
+          isFeatured: current.isFeatured,
+          isPublic: current.isPublic,
+          requiresLogin: current.requiresLogin,
+          requiresApproval: current.requiresApproval,
+          adminOnly: current.adminOnly,
+          launchLabel: current.launchLabel,
+          notes: current.notes,
+          accentColor: current.accentColor,
+          cardBackgroundColor: current.cardBackgroundColor,
+          cardBackgroundOpacity: current.cardBackgroundOpacity,
+          cardGlowColor: current.cardGlowColor,
+          cardGlowOpacity: current.cardGlowOpacity,
+          cardHoverTintOpacity: current.cardHoverTintOpacity,
+          logoUrl: current.logoUrl,
+          screenshotUrl: current.screenshotUrl,
+          secondaryCategory: current.secondaryCategory,
+          openInNewTab: next.type === "external",
+        });
+        toast.success("Program updated.");
+      } else {
+        await addProgram(makeProgramPayload(form, programs.length));
+        toast.success("Program added.");
+      }
+
+      resetForm();
     } catch (error) {
       toast.error(getErrorMessage(error));
     } finally {
@@ -146,11 +198,11 @@ export default function AdminProgramsPage() {
         <header className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
           <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Nxt Lvl Hub Admin</p>
           <h1 className="mt-2 text-2xl font-semibold">Program Management</h1>
-          <p className="mt-2 text-sm text-slate-300">Add and remove suite programs from the public catalog.</p>
+          <p className="mt-2 text-sm text-slate-300">Add, edit, and remove suite programs from the public catalog.</p>
         </header>
 
         <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-          <h2 className="text-lg font-semibold">Add Program</h2>
+          <h2 className="text-lg font-semibold">{editingId ? "Edit Program" : "Add Program"}</h2>
           <form className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2" onSubmit={onSubmit}>
             <div className="space-y-2">
               <Label htmlFor="program-name">Program Name</Label>
@@ -248,10 +300,17 @@ export default function AdminProgramsPage() {
             </div>
 
             <div className="md:col-span-2">
-              <Button type="submit" className="w-full sm:w-auto" disabled={isSaving}>
-                <Plus className="mr-2 h-4 w-4" />
-                {isSaving ? "Adding Program..." : "Add Program"}
-              </Button>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Button type="submit" className="w-full sm:w-auto" disabled={isSaving}>
+                  {editingId ? <Pencil className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
+                  {isSaving ? (editingId ? "Saving Changes..." : "Adding Program...") : editingId ? "Save Changes" : "Add Program"}
+                </Button>
+                {editingId ? (
+                  <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={resetForm}>
+                    Cancel Edit
+                  </Button>
+                ) : null}
+              </div>
             </div>
           </form>
         </section>
@@ -295,15 +354,26 @@ export default function AdminProgramsPage() {
                         {program.type === "external" ? program.externalUrl : program.internalRoute}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => void onDelete(program.id, program.name)}
-                          disabled={deletingId === program.id}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          {deletingId === program.id ? "Removing..." : "Remove"}
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onStartEdit(program)}
+                            disabled={deletingId === program.id || isSaving}
+                          >
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => void onDelete(program.id, program.name)}
+                            disabled={deletingId === program.id}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            {deletingId === program.id ? "Removing..." : "Remove"}
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))

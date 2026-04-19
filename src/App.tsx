@@ -8,6 +8,7 @@ import { ProgramProvider } from "@/context/ProgramContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import PublicHomePage from "@/pages/PublicHomePage";
 import AdminLoginPage from "@/pages/AdminLoginPage";
+import AdminPage from "@/pages/AdminPage";
 import AdminProgramsPage from "@/pages/AdminProgramsPage";
 import NotFound from "@/pages/NotFound";
 
@@ -28,9 +29,10 @@ const App = () => (
               {/* ── Admin auth + protected program management ───────── */}
               <Route path="/admin" element={<AdminLoginPage />} />
               <Route element={<ProtectedRoute requirePlatformAdmin />}>
-                <Route path="/admin/programs" element={<AdminProgramsPage />} />
-                <Route path="/admin/organizations" element={<Navigate to="/admin/programs" replace />} />
-                <Route path="/admin/subscriptions" element={<Navigate to="/admin/programs" replace />} />
+                <Route path="/admin/programs" element={<AdminPage section="programs" />} />
+                <Route path="/admin/organizations" element={<AdminPage section="organizations" />} />
+                <Route path="/admin/subscriptions" element={<AdminPage section="subscriptions" />} />
+                <Route path="/admin/programs-lite" element={<AdminProgramsPage />} />
               </Route>
 
               {/* ── Legacy URL redirects ─────────────────────────────── */}
