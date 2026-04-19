@@ -105,10 +105,7 @@ export class AuthService {
           throw new AppError("Invalid email or password.", 401);
         }
 
-        // Use Prisma user - with organization if they have active memberships
-        const membership = user.memberships?.[0];
-        const organizationId = membership?.organizationId || "default-org";
-        return this.issueTokensPrisma(user, organizationId, partition);
+        return this.issueTokensPrisma(user, partition);
       }
     } catch (err) {
       // If it's our AppError, rethrow it
@@ -395,15 +392,13 @@ export class AuthService {
 
   issueTokensPrisma(
     user: { id: string; email: string },
-    organizationId: string,
     partition: string,
   ): { tokens: AuthTokens; refreshToken: string } {
-    const accessClaims: AuthTokenClaims & { organizationId?: string } = {
+    const accessClaims: AuthTokenClaims = {
       sub: user.id,
       email: user.email,
       partition,
       isPlatformAdmin: false,
-      organizationId,
     };
 
     const accessToken = jwt.sign(accessClaims, env.jwtSecret, {

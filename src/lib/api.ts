@@ -191,24 +191,13 @@ function normalizeMeResponse(payload: unknown): MeResponse {
       }),
     };
   }
-
-  const organizationId = typeof source.organizationId === "string" ? source.organizationId : "";
   return {
     id,
     email,
     isPlatformAdmin,
     hasPassword,
     mustChangePassword,
-    orgMemberships: organizationId
-      ? [
-          {
-            orgId: organizationId,
-            orgName: organizationId === "default-org" ? "Default Organization" : organizationId,
-            role,
-            active: true,
-          },
-        ]
-      : [],
+    orgMemberships: [],
   };
 }
 
