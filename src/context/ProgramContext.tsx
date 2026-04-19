@@ -7,6 +7,7 @@ import {
   toProgramMutationInput,
   updateProgram as updateProgramRecord,
 } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import { Program } from "@/types/program";
 
 const PROGRAM_STORAGE_KEY = "nltops.programs";
@@ -29,6 +30,7 @@ interface ProgramContextType {
 const ProgramContext = createContext<ProgramContextType | undefined>(undefined);
 
 export function ProgramProvider({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isInitializing } = useAuth();
   const [programs, setPrograms] = useState<Program[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<Error | null>(null);
@@ -50,10 +52,11 @@ export function ProgramProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // GET /api/programs is public — no auth required for published programs.
+  // Rehydrate when auth state changes so admin users see non-public/admin programs after login.
   useEffect(() => {
+    if (isInitializing) return;
     void hydratePrograms();
-  }, [hydratePrograms]);
+  }, [hydratePrograms, isAuthenticated, isInitializing]);
 
   const addProgram = useCallback(async (data: Omit<Program, "id" | "createdAt" | "updatedAt">) => {
     const now = new Date().toISOString();
