@@ -8,12 +8,36 @@ import {
   updateProgram as updateProgramRecord,
 } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { programCatalogSeed } from "@/data/programCatalogSeed";
 import { Program } from "@/types/program";
 
 const PROGRAM_STORAGE_KEY = "nltops.programs";
 
 function savePrograms(programs: Program[]) {
   localStorage.setItem(PROGRAM_STORAGE_KEY, JSON.stringify(programs));
+}
+
+function readStoredPrograms() {
+  try {
+    const raw = localStorage.getItem(PROGRAM_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return null;
+    }
+
+    return parsed.map((record) => normalizeProgram(record as Parameters<typeof normalizeProgram>[0]));
+  } catch {
+    return null;
+  }
+}
+
+function getSeedPrograms() {
+  const now = new Date().toISOString();
+  return programCatalogSeed.map((program) => normalizeProgram({ ...program, createdAt: now, updatedAt: now }));
 }
 
 interface ProgramContextType {
@@ -43,10 +67,13 @@ export function ProgramProvider({ children }: { children: React.ReactNode }) {
       const records = await listPrograms();
       const normalizedPrograms = records.map(normalizeProgram);
       setPrograms(normalizedPrograms);
+      savePrograms(normalizedPrograms);
     } catch (error) {
       console.error("[programs] Failed to load programs from API.", error);
-      setCatalogError(error instanceof Error ? error : new Error("Failed to load programs."));
-      setPrograms([]);
+      const fallbackPrograms = readStoredPrograms() ?? getSeedPrograms();
+      setPrograms(fallbackPrograms);
+      savePrograms(fallbackPrograms);
+      setCatalogError(fallbackPrograms.length > 0 ? null : error instanceof Error ? error : new Error("Failed to load programs."));
     } finally {
       setIsLoading(false);
     }
