@@ -9,7 +9,9 @@ services:
       - key: PORT
         value: 10000
       - key: CORS_ORIGIN
-        value: https://nltops.com
+        value: https://ntlops.com,https://nltops.com,https://www.ntlops.com,https://www.nltops.com
+      - key: VITE_API_BASE_URL
+        value: https://nxt-lvl-hub.onrender.com
       - key: UPLOAD_PATH
         value: backend/uploads
       - key: VITE_SUITE_URL
