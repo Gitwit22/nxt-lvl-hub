@@ -1,60 +1,644 @@
-<<<<<<< HEAD
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// Canonical schema — source of truth is nxt-lvl-api/prisma/schema.prisma
+// This file must stay in sync with that schema.
+// Migrations are run from nxt-lvl-api only; do NOT run migrate/db push from here.
 
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
-=======
-generator client {
-  provider = "prisma-client-js"
->>>>>>> 110f65d6d293c99b51124b1e5e9326cbfb22d15d
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-<<<<<<< HEAD
-=======
-
-model Organization {
-  id          String       @id @default(cuid())
-  name        String
-  slug        String       @unique
-  isActive    Boolean      @default(true)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-
-  memberships Membership[]
-}
 
 model User {
-  id           String       @id @default(cuid())
-  email        String       @unique
-  passwordHash String
-  firstName    String?
-  lastName     String?
-  isActive     Boolean      @default(true)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id           String   @id @default(cuid())
+  organizationId String @default("default-org")
+  email        String   @unique
+  passwordHash String   @default("")
+  role         String   @default("uploader")
+  platformRole String   @default("user")      // "suite_admin" | "user"
+  displayName  String   @default("")
+  firstName    String   @default("")
+  lastName     String   @default("")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  memberships  Membership[]
+  mustChangePassword Boolean  @default(false)   // true after admin assigns a temp password
+  passwordSetAt      DateTime?                  // set when user first chooses their own password
+
+  // ── Deprecated / legacy platform-handoff fields ──────────────────────────
+  // These were used by the old suite→app JWT handoff flow that has been removed.
+  // Keep them nullable so existing rows are not broken; do not write new values.
+  identitySource String  @default("local")   // @deprecated — was "platform" | "local"
+  platformUserId String?                      // @deprecated — was Suite user ID for linked accounts
+  // ─────────────────────────────────────────────────────────────────────────
+  createdDocuments  Document[] @relation("CreatedBy")
+  uploadedDocuments Document[] @relation("UploadedBy")
+  reviewedDocuments Document[] @relation("ReviewedBy")
+  memberships       Membership[] @relation("UserMembers")
+  programAccess     UserProgramAccess[] @relation("UserProgramAccess")
+  sentInvitations   OrgInvitation[] @relation("InvitedBy")
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+  @@index([platformRole])
+}
+
+model Organization {
+  id                String    @id @default(cuid())
+  name              String
+  // slug: canonical org identifier used in Suite URLs (/orgs/:slug)
+  slug              String    @unique
+  // subdomain: kept for legacy read compatibility; no longer used for routing
+  // as all org access is via /orgs/:slug within the Suite shell.
+  subdomain         String?
+  contactEmail      String?
+  ownerEmail        String?
+  supportEmail      String?
+  phoneNumber       String?
+  industryType      String?
+  notes             String?
+  logoUrl           String?
+  bannerUrl         String?
+  // primaryColor / accentColor: org branding displayed in the workspace header.
+  // These are decorative inside the Suite — no longer used to skin a separate shell.
+  primaryColor      String?
+  accentColor       String?
+  // @deprecated — replaced by OrganizationProgramSubscription rows.
+  // Kept nullable/readable for backfill reference; do not write new values.
+  assignedBundleIds Json      @default("[]")
+  assignedProgramIds Json     @default("[]")
+  planType          String    @default("starter")
+  // status: "active" | "pending" | "suspended" — enforced by OrgAccessGuard in the Suite
+  status            String    @default("active")
+  seatLimit         Int       @default(25)
+  trialEndsAt       DateTime?
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  members               Membership[]                      @relation("OrgMembers")
+  programAccess         OrganizationProgramAccess[]        @relation("OrgProgramAccess")
+  programSubscriptions  OrganizationProgramSubscription[]  @relation("OrgProgramSubscriptions")
+  invitations           OrgInvitation[]                    @relation("OrgInvitations")
+  storageSettings       ProgramStorageSettings[]
+
+  @@index([isActive])
+  @@index([status])
+}
+
+model ProgramStorageSettings {
+  id             String   @id @default(cuid())
+  organizationId String
+  programDomain  String
+  settings       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, programDomain])
+  @@index([organizationId, programDomain])
 }
 
 model Membership {
-  id             String       @id @default(cuid())
+  id             String   @id @default(cuid())
   userId         String
   organizationId String
-  role           String       @default("owner")
-  createdAt      DateTime     @default(now())
+  role           String   @default("member")  // owner | admin | manager | member | viewer
+  createdAt      DateTime @default(now())
 
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation("UserMembers", fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation("OrgMembers", fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@index([role])
 }
->>>>>>> 110f65d6d293c99b51124b1e5e9326cbfb22d15d
+
+model OrganizationProgramAccess {
+  id             String   @id @default(cuid())
+  organizationId String
+  programId      String
+  enabled        Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation("OrgProgramAccess", fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, programId])
+  @@index([organizationId])
+}
+
+model UserProgramAccess {
+  id             String   @id @default(cuid())
+  userId         String
+  organizationId String
+  programId      String
+  enabled        Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user    User    @relation("UserProgramAccess", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId, programId])
+  @@index([userId, organizationId])
+}
+
+model OrgInvitation {
+  id             String    @id @default(cuid())
+  organizationId String
+  email          String
+  role           String    @default("member")
+  invitedById    String
+  token          String    @unique @default(cuid())
+  status         String    @default("pending")  // pending | accepted | revoked | expired
+  expiresAt      DateTime
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  invitedBy    User         @relation("InvitedBy", fields: [invitedById], references: [id])
+  organization Organization @relation("OrgInvitations", fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, email, status])
+  @@index([organizationId, status])
+  @@index([token])
+}
+
+// Subscription/entitlement: controls whether an org can launch a program.
+// Replaces the old assignedProgramIds JSON blob on Organization.
+// Platform admin manages these rows; app launch checks status === "active" | "trialing".
+model OrganizationProgramSubscription {
+  id                 String    @id @default(cuid())
+  organizationId     String
+  programId          String    // matches Program.id or a well-known slug like "mission-hub"
+  status             String    @default("inactive")  // active | inactive | trialing | past_due | canceled
+  subscriptionSource String    @default("manual")    // stripe | manual | comp
+  startsAt           DateTime?
+  endsAt             DateTime?
+  seatLimit          Int?
+  notes              String    @default("")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  organization Organization @relation("OrgProgramSubscriptions", fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, programId])
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([status])
+}
+
+model Program {
+  id               String   @id @default(cuid())
+  programDomain    String
+  organizationId   String?
+  slug             String
+  name             String
+  shortDescription String
+  longDescription  String   @default("")
+  category         String   @default("General")
+  tags             Json
+  status           String
+  type             String
+  origin           String   @default("suite-native")
+  internalRoute    String?
+  externalUrl      String?
+  openInNewTab     Boolean  @default(false)
+  logoUrl          String?
+  screenshotUrl    String?
+  accentColor      String?
+  isFeatured       Boolean  @default(false)
+  isPublic         Boolean  @default(true)
+  requiresLogin    Boolean  @default(false)
+  requiresApproval Boolean  @default(false)
+  launchLabel      String   @default("Launch")
+  displayOrder     Int      @default(999)
+  notes            String   @default("")
+  // @deprecated — platform_only / hybrid modes removed; all programs use local auth
+  authMode         String   @default("local_only")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  deletedAt        DateTime?
+
+  @@unique([programDomain, slug])
+  @@index([programDomain, deletedAt, displayOrder])
+  @@index([programDomain, organizationId])
+}
+
+// ─── Timeflow ─────────────────────────────────────────────────────────────────
+
+model TimeflowSettings {
+  id                    String   @id @default(cuid())
+  organizationId        String
+  userId                String
+  businessName          String   @default("")
+  defaultClientId       String?
+  invoiceFrequency      String   @default("monthly")
+  invoiceNotes          String   @default("")
+  paymentInstructions   String   @default("")
+  invoiceLogoDataUrl    String?  @db.Text
+  invoiceBannerDataUrl  String?  @db.Text
+  companyViewerAccess   Boolean  @default(false)
+  emailTemplate         String   @default("") @db.Text
+  periodWeekStartsOn    Int      @default(1)
+  periodTargetHours     Float    @default(0)
+  periodTargetEarnings  Float    @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([organizationId, userId])
+  @@index([organizationId, userId])
+}
+
+model TimeflowClient {
+  id                   String   @id @default(cuid())
+  organizationId       String
+  userId               String
+  name                 String
+  contactName          String?
+  contactEmail         String?
+  contacts             Json     @default("[]")
+  hourlyRate           Float?
+  companyViewerEnabled Boolean  @default(false)
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  projects    TimeflowProject[]    @relation("ClientProjects")
+  timeEntries TimeflowTimeEntry[]  @relation("ClientTimeEntries")
+
+  @@index([organizationId, userId])
+  @@index([organizationId, userId, isActive])
+}
+
+model TimeflowProject {
+  id           String   @id @default(cuid())
+  organizationId String
+  userId       String
+  clientId     String
+  name         String
+  status       String   @default("active")   // planning|active|on_hold|completed|archived
+  description  String   @default("") @db.Text
+  billingType  String   @default("hourly_uncapped")  // hourly_uncapped|hourly_capped|fixed_fee
+  hourlyRate   Float    @default(0)
+  maxPayoutCap Float    @default(0)
+  capHandling  String   @default("allow_overage")    // allow_overage|warn_only|block_billable
+  startDate    String
+  endDate      String?
+  notes        String   @default("") @db.Text
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  client      TimeflowClient      @relation("ClientProjects", fields: [clientId], references: [id], onDelete: Cascade)
+  timeEntries TimeflowTimeEntry[] @relation("ProjectTimeEntries")
+
+  @@index([organizationId, userId])
+  @@index([organizationId, userId, clientId])
+  @@index([organizationId, userId, status])
+}
+
+model TimeflowTimeEntry {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  clientId       String
+  projectId      String?
+  date           String
+  startTime      String
+  endTime        String?
+  durationHours  Float    @default(0)
+  billingRate    Float?
+  billable       Boolean  @default(true)
+  invoiced       Boolean  @default(false)
+  invoiceId      String?
+  notes          String   @default("")
+  status         String   @default("completed")  // running|completed|invoiced
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  client  TimeflowClient   @relation("ClientTimeEntries", fields: [clientId], references: [id], onDelete: Cascade)
+  project TimeflowProject? @relation("ProjectTimeEntries", fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, userId])
+  @@index([organizationId, userId, clientId])
+  @@index([organizationId, userId, date])
+  @@index([organizationId, userId, invoiced])
+  @@index([organizationId, userId, status])
+}
+
+model TimeflowInvoice {
+  id            String   @id @default(cuid())
+  organizationId String
+  userId        String
+  clientId      String
+  periodStart   String
+  periodEnd     String
+  billingMode   String   @default("outstanding")  // range|outstanding
+  rangeStart    String?
+  rangeEnd      String?
+  grouping      String   @default("none")          // none|day|week
+  dueDate       String
+  entryIds      Json     @default("[]")
+  timeEntryIds  Json     @default("[]")
+  lineItems     Json     @default("[]")
+  projectIds    Json     @default("[]")
+  totalHours    Float    @default(0)
+  hourlyRate    Float    @default(0)
+  subtotal      Float    @default(0)
+  taxRate       Float    @default(0)
+  taxAmount     Float    @default(0)
+  totalAmount   Float    @default(0)
+  hasMixedRates Boolean  @default(false)
+  status        String   @default("draft")   // draft|issued|sent|paid
+  issuedAt      DateTime?
+  paidAt        DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([organizationId, userId])
+  @@index([organizationId, userId, clientId])
+  @@index([organizationId, userId, status])
+}
+
+// ─── End Timeflow ──────────────────────────────────────────────────────────────
+
+// ─── Mission Hub ──────────────────────────────────────────────────────────────
+
+model MissionHubProgram {
+  id              String   @id @default(cuid())
+  organizationId  String
+  userId          String
+  name            String
+  category        String   @default("")
+  manager         String   @default("")
+  status          String   @default("Active")   // Active|Completed|Planning|Suspended
+  startDate       String   @default("")
+  endDate         String?
+  budget          String   @default("")
+  budgetAmount    Float    @default(0)
+  progress        Int      @default(0)
+  description     String   @default("") @db.Text
+  targetAudience  String   @default("")
+  team            Json     @default("[]")
+  timeEntries     Json     @default("[]")
+  budgetItems     Json     @default("[]")
+  supporters      Json     @default("[]")
+  sponsors        Json     @default("[]")
+  documents       Json     @default("[]")
+  tasks           Json     @default("[]")
+  outcomes        Json     @default("[]")
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([organizationId, userId])
+  @@index([organizationId, userId, status])
+}
+
+model MissionHubGrant {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  userId             String
+  grantName          String
+  fundingSource      String   @default("")
+  amountAwarded      Float    @default(0)
+  startDate          String   @default("")
+  endDate            String?
+  status             String   @default("Active")
+  grantManager       String   @default("")
+  linkedPrograms     Json     @default("[]")
+  reportingStatus    String   @default("")
+  requirements       Json     @default("[]")
+  budgetAllocation   Json     @default("[]")
+  reportingDeadlines Json     @default("[]")
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([organizationId, userId])
+  @@index([organizationId, userId, status])
+}
+
+model MissionHubExpense {
+  id              String   @id @default(cuid())
+  organizationId  String
+  userId          String
+  expenseName     String
+  amount          Float    @default(0)
+  date            String   @default("")
+  category        String   @default("")
+  type            String   @default("")
+  linkedProgramId String?
+  linkedProgram   String?
+  linkedGrant     String?
+  linkedCampaign  String?
+  fundingSource   String?
+  notes           String   @default("")
+  approvalStatus  String   @default("Pending")   // Pending|Approved|Rejected
+  recurring       Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([organizationId, userId])
+  @@index([organizationId, userId, category])
+  @@index([organizationId, userId, approvalStatus])
+}
+
+model MissionHubSponsor {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  userId             String
+  sponsorType        String   @default("")
+  organizationName   String
+  contactName        String   @default("")
+  email              String   @default("")
+  phone              String   @default("")
+  contributionAmount Float    @default(0)
+  contributionType   String   @default("")
+  paymentStatus      String   @default("")
+  status             String   @default("Active")
+  notes              String   @default("")
+  linkedPrograms     Json     @default("[]")
+  linkedCampaigns    Json     @default("[]")
+  linkedItems        Json     @default("[]")
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([organizationId, userId])
+  @@index([organizationId, userId, status])
+}
+
+model MissionHubCampaign {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  name           String
+  category       String   @default("Event")    // Event|Drive|Seasonal|Equipment
+  status         String   @default("Planning") // Planning|Active|Closed
+  owner          String   @default("")
+  startDate      String   @default("")
+  endDate        String?
+  goalAmount     Float    @default(0)
+  linkedPrograms Json     @default("[]")
+  tiers          Json     @default("[]")
+  items          Json     @default("[]")
+  donations      Json     @default("[]")
+  events         Json     @default("[]")
+  expenses       Json     @default("[]")
+  documents      Json     @default("[]")
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId, userId])
+  @@index([organizationId, userId, status])
+}
+
+model MissionHubPersonnel {
+  id               String   @id @default(cuid())
+  organizationId   String
+  userId           String
+  firstName        String
+  lastName         String
+  email            String   @default("")
+  phone            String   @default("")
+  title            String   @default("")
+  department       String   @default("")
+  type             String   @default("Staff")  // Staff|Volunteer|Contractor|Board Member
+  role             String   @default("Admin")  // Executive Director|Deputy Director|Finance|Admin
+  status           String   @default("Active") // Active|Inactive|On Leave
+  accessLevel      String   @default("Basic")  // Full|Operational|Financial|Basic
+  assignedPrograms Json     @default("[]")
+  assignedGrants   Json     @default("[]")
+  notes            String   @default("")
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([organizationId, userId])
+  @@index([organizationId, userId, status])
+  @@index([organizationId, userId, type])
+}
+
+model MissionHubCalendarEntry {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  title          String
+  date           String
+  type           String   @default("")
+  description    String   @default("")
+  linkedEntity   String?
+  linkedEntityId String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId, userId])
+  @@index([organizationId, userId, date])
+}
+
+model MissionHubSavedReport {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  name           String
+  description    String   @default("")
+  config         Json     @default("{}")
+  isFavorite     Boolean  @default(false)
+  lastRun        String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId, userId])
+  @@index([organizationId, userId, isFavorite])
+}
+
+// ─── End Mission Hub ──────────────────────────────────────────────────────────
+
+model Document {
+  id                    String    @id
+  organizationId        String
+  programDomain         String
+  title                 String
+  description           String    @default("")
+  author                String    @default("Unknown")
+  year                  Int
+  month                 Int?
+  category              String
+  type                  String
+  financialCategory     String?
+  financialDocumentType String?
+  tags                  Json
+  keywords              Json
+  originalFileName      String?
+  mimeType              String?
+  fileSize              Int?
+  fileUrl               String
+  filePath              String?
+  processingStatus      String
+  ocrStatus             String
+  extractedText         String    @default("") @db.Text
+  extractedMetadata     Json
+  classificationResult  Json?
+  intakeSource          String
+  sourceReference       String?
+  department            String?
+  createdAt             DateTime
+  updatedAt             DateTime  @updatedAt
+  importedAt            DateTime
+  processingHistory     Json
+  status                String?
+  statusUpdatedAt       DateTime?
+  auditTrail            Json?
+  extraction            Json?
+  duplicateCheck        Json?
+  review                Json?
+  searchIndex           Json?
+  needsReview           Boolean   @default(false)
+  aiSummary             String    @default("") @db.Text
+
+  createdByUserId String?
+  uploadedById  String?
+  reviewedById  String?
+  createdBy     User?   @relation("CreatedBy", fields: [createdByUserId], references: [id])
+  uploadedBy    User?   @relation("UploadedBy", fields: [uploadedById], references: [id])
+  reviewedBy    User?   @relation("ReviewedBy", fields: [reviewedById], references: [id])
+
+  jobs ProcessingJob[]
+
+  @@index([organizationId, programDomain, createdAt])
+  @@index([organizationId, programDomain, needsReview, updatedAt])
+}
+
+model ProcessingJob {
+  id             String    @id @default(cuid())
+  organizationId String
+  programDomain  String
+  documentId  String
+  status      String    @default("queued")
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  error       String?
+  errorLog    Json?
+  scheduledAt DateTime  @default(now())
+  nextRetryAt DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledAt])
+  @@index([documentId])
+  @@index([organizationId, programDomain, status, scheduledAt])
+}
