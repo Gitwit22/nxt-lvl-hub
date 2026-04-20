@@ -493,6 +493,8 @@ export function normalizeProgram(record: ProgramRecord): Program {
   const routePrefix = typeof source.routePrefix === "string" ? source.routePrefix : "";
   const derivedRoute = routePrefix || source.internalRoute || `/applications/${source.id}`;
   const normalizedSlug = source.slug || source.key || source.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const MISSION_HUB_PRIMARY_URL = "https://nonprofitops.nltops.com";
+  const MISSION_HUB_FALLBACK_URL = "https://mission-hub.pages.dev";
 
   // Legacy compatibility for seeded records that used outdated launch mapping.
   const isLegacyTimeflowInternal =
@@ -505,6 +507,22 @@ export function normalizeProgram(record: ProgramRecord): Program {
     ? "https://community-chronicle.nltops.com"
     : source.externalUrl;
 
+  const legacyMissionHubUrl =
+    normalizedSlug === "mission-hub"
+      ? ((legacyCommunityChronicleUrl || "")
+          .replace("https://mission-hub.onrender.com", MISSION_HUB_PRIMARY_URL)
+          .replace("https://mission-hub.pages.dev", MISSION_HUB_FALLBACK_URL)
+          .replace("https://nonprofitops.ntlops.com", MISSION_HUB_PRIMARY_URL)
+          || undefined)
+      : undefined;
+
+  const missionHubExternalUrl =
+    normalizedSlug === "mission-hub"
+      ? (legacyMissionHubUrl || MISSION_HUB_PRIMARY_URL || MISSION_HUB_FALLBACK_URL)
+      : undefined;
+
+  const shouldForceMissionHubExternal = normalizedSlug === "mission-hub";
+
   return {
     id: source.id,
     slug: normalizedSlug,
@@ -516,13 +534,27 @@ export function normalizeProgram(record: ProgramRecord): Program {
     secondaryCategory: source.secondaryCategory ?? undefined,
     tags: Array.isArray(source.tags) ? source.tags : [],
     status: source.status || "live",
-    type: isLegacyTimeflowInternal ? "external" : (source.type || (source.externalUrl ? "external" : "internal")),
+    type: shouldForceMissionHubExternal
+      ? "external"
+      : isLegacyTimeflowInternal
+        ? "external"
+        : (source.type || (source.externalUrl ? "external" : "internal")),
     origin: source.origin || "suite-native",
-    internalRoute: isLegacyTimeflowInternal ? undefined : (source.type === "external" ? undefined : derivedRoute),
-    externalUrl: isLegacyTimeflowInternal
-      ? "https://timeflow.nltops.com"
-      : (source.type === "external" ? legacyCommunityChronicleUrl || routePrefix || undefined : legacyCommunityChronicleUrl || undefined),
-    openInNewTab: isLegacyTimeflowInternal ? true : (source.openInNewTab ?? source.type === "external"),
+    internalRoute: shouldForceMissionHubExternal
+      ? undefined
+      : isLegacyTimeflowInternal
+        ? undefined
+        : (source.type === "external" ? undefined : derivedRoute),
+    externalUrl: shouldForceMissionHubExternal
+      ? missionHubExternalUrl
+      : isLegacyTimeflowInternal
+        ? "https://timeflow.nltops.com"
+        : (source.type === "external" ? legacyCommunityChronicleUrl || routePrefix || undefined : legacyCommunityChronicleUrl || undefined),
+    openInNewTab: shouldForceMissionHubExternal
+      ? true
+      : isLegacyTimeflowInternal
+        ? true
+        : (source.openInNewTab ?? source.type === "external"),
     logoUrl: source.logoUrl ?? undefined,
     screenshotUrl: source.screenshotUrl ?? undefined,
     accentColor: source.accentColor ?? undefined,
