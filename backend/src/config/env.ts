@@ -21,9 +21,10 @@ export const env = {
     accountId: (process.env.R2_ACCOUNT_ID || "").trim(),
     accessKeyId: (process.env.R2_ACCESS_KEY_ID || "").trim(),
     secretAccessKey: (process.env.R2_SECRET_ACCESS_KEY || "").trim(),
-    bucket: (process.env.R2_BUCKET || "").trim(),
+    // R2_BUCKET_NAME / R2_PUBLIC_URL match the names nxt-lvl-api2 uses, so its values can be copied as-is.
+    bucket: (process.env.R2_BUCKET || process.env.R2_BUCKET_NAME || "").trim(),
     // Public origin serving the bucket (custom domain or r2.dev URL), e.g. https://cdn.nltops.com
-    publicBaseUrl: (process.env.R2_PUBLIC_BASE_URL || "").trim().replace(/\/+$/, ""),
+    publicBaseUrl: (process.env.R2_PUBLIC_BASE_URL || process.env.R2_PUBLIC_URL || "").trim().replace(/\/+$/, ""),
   },
 };
 
