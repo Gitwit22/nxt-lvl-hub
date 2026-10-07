@@ -12,8 +12,9 @@ type ApiEnvelope<T> = {
 
 type ApiRecord = Record<string, unknown>;
 
-// nxt-lvl-api2 is the hub's backend (auth, program catalog, logo uploads).
-const DEFAULT_HOSTED_API_BASE_URL = "https://nxt-lvl-api2.onrender.com";
+// nxt-lvl-api2 is the hub's backend (auth, program catalog, logo uploads). It is served on a
+// subdomain of the hub's own site so its session cookies are same-site (not blocked as third-party).
+const DEFAULT_HOSTED_API_BASE_URL = "https://api.ntlops.com";
 const API_V1 = "/api/v1";
 
 function getDefaultApiBaseUrl() {
