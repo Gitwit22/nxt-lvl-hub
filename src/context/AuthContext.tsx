@@ -3,7 +3,6 @@ import {
   bootstrapAdminApi,
   type AuthTokenResponse,
   type MeResponse,
-  getAccessToken,
   loginApi,
   logoutApi,
   meApi,
@@ -176,10 +175,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const refreshMe = useCallback(async () => {
-    if (!getAccessToken()) return;
+    // Sessions live in httpOnly cookies (no client-side token), so gate on auth state instead.
+    if (!isAuthenticated) return;
     const profile = await meApi();
     setMe(profile);
-  }, []);
+  }, [isAuthenticated]);
 
   const value: AuthContextType = {
     isInitializing,

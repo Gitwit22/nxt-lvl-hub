@@ -116,7 +116,7 @@ const emptyProgramForm = (): Omit<Program, "id" | "createdAt" | "updatedAt"> => 
 
 function resolveProgramPreviewColor(color?: string) {
   if (!color) return undefined;
-  if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl") || color.startsWith("var(")) {
+  if (/^(#|rgb|hsl|hwb|lab|lch|oklab|oklch|color\(|var\()/i.test(color)) {
     return color;
   }
   return `hsl(${color})`;
@@ -155,7 +155,7 @@ function parseLegacyHslToHex(color?: string, fallback = "#4f46e5") {
 
 function toCssColor(color?: string, fallback = "#4f46e5") {
   if (!color) return fallback;
-  if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl") || color.startsWith("var(")) {
+  if (/^(#|rgb|hsl|hwb|lab|lch|oklab|oklch|color\(|var\()/i.test(color)) {
     return color;
   }
   if (/^(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%$/.test(color)) {
@@ -221,7 +221,7 @@ function StatusPill({ status }: { status: OrganizationStatus }) {
 }
 
 function ProgramManagerTab() {
-  const { programs, isLoading, addProgram, updateProgram, deleteProgram } = usePrograms();
+  const { programs, isLoading, catalogError, addProgram, updateProgram, deleteProgram } = usePrograms();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyProgramForm());
@@ -346,6 +346,10 @@ function ProgramManagerTab() {
   };
 
   const handleDelete = async (programId: string) => {
+    const target = programs.find((program) => program.id === programId);
+    if (!window.confirm(`Archive "${target?.name ?? "this program"}"? It will be hidden from the hub.`)) {
+      return;
+    }
     try {
       await deleteProgram(programId);
       toast.success("Program archived");
@@ -368,6 +372,11 @@ function ProgramManagerTab() {
 
       <div className="space-y-2">
         {isLoading && <p className="text-xs text-muted-foreground font-mono">Loading catalog...</p>}
+        {!isLoading && catalogError && (
+          <p className="text-xs text-destructive font-mono" role="alert">
+            Could not load the program catalog: {catalogError.message}. Existing programs are not shown; avoid re-creating them.
+          </p>
+        )}
         {[...programs].sort((a, b) => a.displayOrder - b.displayOrder).map((program) => (
           <div key={program.id} className="metal-panel rounded-lg p-4 flex items-center gap-4 relative">
             <Screw className="absolute top-2 left-2" />

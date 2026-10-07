@@ -13,7 +13,7 @@ interface ProgramCardProps {
 
 function resolveProgramColor(color?: string) {
   if (!color) return undefined;
-  if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl") || color.startsWith("var(")) {
+  if (/^(#|rgb|hsl|hwb|lab|lch|oklab|oklch|color\(|var\()/i.test(color)) {
     return color;
   }
   return `hsl(${color})`;

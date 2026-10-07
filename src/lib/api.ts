@@ -12,11 +12,9 @@ type ApiEnvelope<T> = {
 
 type ApiRecord = Record<string, unknown>;
 
-const DEFAULT_HOSTED_API_BASE_URL = "https://nxt-lvl-hub.onrender.com";
-const COMPAT_PLATFORM_ADMIN_EMAILS = new Set([
-  "admin@example.com",
-  "itstheplugllc@gmail.com",
-]);
+// nxt-lvl-api2 is the hub's backend (auth, program catalog, logo uploads).
+const DEFAULT_HOSTED_API_BASE_URL = "https://nxt-lvl-api2.onrender.com";
+const API_V1 = "/api/v1";
 
 function getDefaultApiBaseUrl() {
   if (typeof window === "undefined") {
@@ -38,7 +36,8 @@ function getDefaultApiBaseUrl() {
   return "";
 }
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || getDefaultApiBaseUrl() || "").replace(/\/$/, "");
+// VITE_API2_BASE_URL is new so a stale VITE_API_BASE_URL (pointing at the retired hub backend) is ignored.
+const API_BASE_URL = (import.meta.env.VITE_API2_BASE_URL || getDefaultApiBaseUrl() || "").replace(/\/$/, "");
 const APP_PARTITION = PROGRAM_DOMAIN;
 const REQUEST_TIMEOUT_MS = 12000;
 
@@ -101,6 +100,10 @@ function getErrorFromPayload(payload: unknown, fallback: string) {
     return payload.error;
   }
 
+  if (isRecord(payload.error) && typeof payload.error.message === "string" && payload.error.message.length > 0) {
+    return payload.error.message;
+  }
+
   if (typeof payload.message === "string" && payload.message.length > 0) {
     return payload.message;
   }
@@ -159,13 +162,8 @@ function normalizeMeResponse(payload: unknown): MeResponse {
   const id = typeof source.id === "string" ? source.id : "";
   const email = typeof source.email === "string" ? source.email : "";
   const role = typeof source.role === "string" ? source.role.toLowerCase() : "member";
-  const isPlatformAdmin =
-    source.isPlatformAdmin === true ||
-    role === "admin" ||
-    role === "owner" ||
-    role === "super_admin" ||
-    role === "org_admin" ||
-    COMPAT_PLATFORM_ADMIN_EMAILS.has(email.toLowerCase());
+  // Only api2's super_admin role may manage the catalog; the UI must not grant more than the server enforces.
+  const isPlatformAdmin = source.isPlatformAdmin === true || role === "super_admin";
 
   const hasPassword =
     typeof source.hasPassword === "boolean" ? source.hasPassword : undefined;
@@ -191,21 +189,33 @@ function normalizeMeResponse(payload: unknown): MeResponse {
       }),
     };
   }
+  const organizationId = typeof source.organizationId === "string" ? source.organizationId : "";
   return {
     id,
     email,
     isPlatformAdmin,
     hasPassword,
     mustChangePassword,
-    orgMemberships: [],
+    orgMemberships: organizationId
+      ? [{ orgId: organizationId, orgName: "", role, active: source.isActive !== false }]
+      : [],
   };
+}
+
+// api2 keeps the session in httpOnly cookies (15 min access, 7 day refresh); there is no
+// token in the response body, so the client tracks "has a session" with an empty token.
+const COOKIE_SESSION_TOKEN = "";
+const COOKIE_SESSION_EXPIRES_IN_SECONDS = 15 * 60;
+
+function cookieSession(profile?: MeResponse): AuthTokenResponse {
+  return { accessToken: COOKIE_SESSION_TOKEN, expiresIn: COOKIE_SESSION_EXPIRES_IN_SECONDS, profile };
 }
 
 // ─── Low-level refresh (avoids circular dependency with apiRequest) ───────────
 async function doRefresh(): Promise<{ accessToken: string; expiresIn: number } | null> {
   try {
-    console.log("[auth] doRefresh: calling POST /api/auth/refresh");
-    const response = await fetchWithTimeout(`${API_BASE_URL}/api/auth/refresh`, {
+    console.log("[auth] doRefresh: calling POST /api/v1/auth/refresh");
+    const response = await fetchWithTimeout(`${API_BASE_URL}${API_V1}/auth/refresh`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json", "x-app-partition": APP_PARTITION },
@@ -216,13 +226,9 @@ async function doRefresh(): Promise<{ accessToken: string; expiresIn: number } |
     }
     const text = await response.text();
     const payload = parseJsonResponse(text);
-    const data = unwrapApiPayload<unknown>(response, payload, "/api/auth/refresh");
-    const normalized = normalizeAuthResponse(data);
+    unwrapApiPayload<unknown>(response, payload, "/api/v1/auth/refresh");
     console.log("[auth] doRefresh: success");
-    return {
-      accessToken: normalized.accessToken,
-      expiresIn: normalized.expiresIn,
-    };
+    return cookieSession();
   } catch (err) {
     console.error("[auth] doRefresh error:", err);
     return null;
@@ -251,7 +257,7 @@ async function apiRequest<T>(path: string, init: RequestInit = {}, _retry = true
     headers,
   });
 
-  if (response.status === 401 && _retry && !path.startsWith("/api/auth/")) {
+  if (response.status === 401 && _retry && !path.startsWith(`${API_V1}/auth/`)) {
     console.warn(`[auth] 401 on ${path}, attempting refresh...`);
     const refreshed = await doRefresh();
     if (refreshed) {
@@ -334,11 +340,12 @@ function normalizeAuthResponse(payload: unknown): AuthTokenResponse {
 }
 
 export async function loginApi(email: string, password: string): Promise<AuthTokenResponse> {
-  const payload = await apiRequest<unknown>("/api/auth/login", {
+  // api2 sets the session cookies and returns { admin }; the profile comes from /auth/me.
+  await apiRequest<unknown>(`${API_V1}/auth/login`, {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
-  return normalizeAuthResponse(payload);
+  return cookieSession();
 }
 
 export async function registerApi(email: string, password: string, setupToken?: string): Promise<AuthTokenResponse> {
@@ -350,7 +357,7 @@ export async function registerApi(email: string, password: string, setupToken?: 
 }
 
 export async function changePasswordApi(currentPassword: string, newPassword: string): Promise<void> {
-  await apiRequest<void>("/api/auth/change-password", {
+  await apiRequest<void>(`${API_V1}/auth/change-password`, {
     method: "POST",
     body: JSON.stringify({ currentPassword, newPassword }),
   });
@@ -371,7 +378,7 @@ export async function completeForceResetApi(currentTemporaryPassword: string, ne
 }
 
 export async function logoutApi(): Promise<void> {
-  await apiRequest<void>("/api/auth/logout", { method: "POST" });
+  await apiRequest<void>(`${API_V1}/auth/logout`, { method: "POST" });
 }
 
 export async function refreshToken(): Promise<AuthTokenResponse | null> {
@@ -379,7 +386,7 @@ export async function refreshToken(): Promise<AuthTokenResponse | null> {
 }
 
 export async function meApi(): Promise<MeResponse> {
-  const payload = await apiRequest<unknown>("/api/auth/me");
+  const payload = await apiRequest<unknown>(`${API_V1}/auth/me`);
   return normalizeMeResponse(payload);
 }
 
@@ -815,26 +822,56 @@ export function getPortalBootstrap(slug?: string) {
   return getOrgBootstrap(slug);
 }
 
+const PROGRAM_STRING_FIELDS = [
+  "secondaryCategory",
+  "internalRoute",
+  "externalUrl",
+  "logoUrl",
+  "screenshotUrl",
+  "accentColor",
+  "cardBackgroundColor",
+  "cardGlowColor",
+] as const;
+
+/**
+ * api2 validates strictly: server-owned fields (id, organizationId, timestamps) are not accepted,
+ * and an empty string (not null) is how a field is cleared.
+ */
+export function toCatalogProgramPayload(payload: Partial<ProgramMutationInput> & { createdAt?: string; updatedAt?: string }) {
+  const { id: _id, organizationId: _organizationId, createdAt: _createdAt, updatedAt: _updatedAt, deletedAt: _deletedAt, ...rest } =
+    payload as Partial<ProgramRecord>;
+  const body: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(rest)) {
+    if (value === undefined) continue;
+    if (value === null) {
+      if ((PROGRAM_STRING_FIELDS as readonly string[]).includes(key)) body[key] = "";
+      continue;
+    }
+    body[key] = value;
+  }
+  return body;
+}
+
 export function listPrograms() {
-  return apiRequest<ProgramRecord[]>("/api/programs");
+  return apiRequest<ProgramRecord[]>(`${API_V1}/suite/programs`);
 }
 
 export function createProgram(payload: ProgramMutationInput) {
-  return apiRequest<ProgramRecord>("/api/programs", {
+  return apiRequest<ProgramRecord>(`${API_V1}/suite/programs`, {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(toCatalogProgramPayload(payload)),
   });
 }
 
 export function updateProgram(id: string, payload: Partial<ProgramMutationInput>) {
-  return apiRequest<ProgramRecord>(`/api/programs/${id}`, {
+  return apiRequest<ProgramRecord>(`${API_V1}/suite/programs/${encodeURIComponent(id)}`, {
     method: "PUT",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(toCatalogProgramPayload(payload)),
   });
 }
 
 export function deleteProgram(id: string) {
-  return apiRequest<ProgramRecord>(`/api/programs/${id}`, {
+  return apiRequest<ProgramRecord>(`${API_V1}/suite/programs/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
 }
@@ -921,7 +958,7 @@ export async function uploadLogoFile(file: File) {
   const formData = new FormData();
   formData.append("file", file);
 
-  return apiRequest<{ fileName: string; logoUrl: string }>("/api/uploads/logo", {
+  return apiRequest<{ fileName: string; logoUrl: string }>(`${API_V1}/suite/uploads/logo`, {
     method: "POST",
     body: formData,
   });

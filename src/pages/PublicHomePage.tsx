@@ -14,7 +14,7 @@ function PublicProgramCard({ program }: { program: ReturnType<typeof usePrograms
 
   function resolveColor(color?: string) {
     if (!color) return undefined;
-    if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl")) return color;
+    if (/^(#|rgb|hsl|hwb|lab|lch|oklab|oklch|color\(|var\()/i.test(color)) return color;
     return `hsl(${color})`;
   }
 

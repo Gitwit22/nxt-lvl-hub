@@ -12,7 +12,9 @@ interface ProgramLogoProps {
 
 function resolveProgramColor(color?: string) {
   if (!color) return undefined;
-  if (color.startsWith("#") || color.startsWith("rgb") || color.startsWith("hsl") || color.startsWith("var(")) {
+  // Full CSS colors pass through (incl. oklch()/lab() used by imported launchpad programs);
+  // bare "H S% L%" triples are wrapped in hsl() for the theme tokens.
+  if (/^(#|rgb|hsl|hwb|lab|lch|oklab|oklch|color\(|var\()/i.test(color)) {
     return color;
   }
   return `hsl(${color})`;

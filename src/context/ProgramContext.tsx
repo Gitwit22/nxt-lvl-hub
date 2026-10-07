@@ -8,36 +8,12 @@ import {
   updateProgram as updateProgramRecord,
 } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { programCatalogSeed } from "@/data/programCatalogSeed";
 import { Program } from "@/types/program";
 
 const PROGRAM_STORAGE_KEY = "nltops.programs";
 
 function savePrograms(programs: Program[]) {
   localStorage.setItem(PROGRAM_STORAGE_KEY, JSON.stringify(programs));
-}
-
-function readStoredPrograms() {
-  try {
-    const raw = localStorage.getItem(PROGRAM_STORAGE_KEY);
-    if (!raw) {
-      return null;
-    }
-
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) {
-      return null;
-    }
-
-    return parsed.map((record) => normalizeProgram(record as Parameters<typeof normalizeProgram>[0]));
-  } catch {
-    return null;
-  }
-}
-
-function getSeedPrograms() {
-  const now = new Date().toISOString();
-  return programCatalogSeed.map((program) => normalizeProgram({ ...program, createdAt: now, updatedAt: now }));
 }
 
 interface ProgramContextType {
@@ -69,11 +45,11 @@ export function ProgramProvider({ children }: { children: React.ReactNode }) {
       setPrograms(normalizedPrograms);
       savePrograms(normalizedPrograms);
     } catch (error) {
+      // Fail visibly: showing cached or seed data here made stale entries look real, and editing
+      // them wrote phantom programs back to the server.
       console.error("[programs] Failed to load programs from API.", error);
-      const fallbackPrograms = readStoredPrograms() ?? getSeedPrograms();
-      setPrograms(fallbackPrograms);
-      savePrograms(fallbackPrograms);
-      setCatalogError(fallbackPrograms.length > 0 ? null : error instanceof Error ? error : new Error("Failed to load programs."));
+      setPrograms([]);
+      setCatalogError(error instanceof Error ? error : new Error("Failed to load programs."));
     } finally {
       setIsLoading(false);
     }
@@ -115,34 +91,9 @@ export function ProgramProvider({ children }: { children: React.ReactNode }) {
       updatedAt: new Date().toISOString(),
     };
 
-    let updated: Awaited<ReturnType<typeof updateProgramRecord>>;
-    try {
-      updated = await updateProgramRecord(id, toProgramMutationInput(merged));
-    } catch (updateError) {
-      // The program's local ID doesn't exist in the backend (stale localStorage or
-      // wiped server data).  Re-create it under a fresh UUID so the edit is not lost.
-      const isNotFound =
-        updateError instanceof Error &&
-        (updateError.message.toLowerCase().includes("not found") || updateError.message.includes("404"));
-
-      if (!isNotFound) {
-        throw updateError;
-      }
-
-      console.warn("[programs] Program not found on server, recreating:", id);
-      const fresh: Program = { ...merged, id: crypto.randomUUID(), createdAt: merged.createdAt || new Date().toISOString() };
-      updated = await createProgramRecord(toProgramMutationInput(fresh));
-
-      // Replace the stale local entry with the newly created backend record.
-      setPrograms((prev) => {
-        const next = prev
-          .map((p) => (p.id === id ? normalizeProgram(updated) : p))
-          .sort((l, r) => l.displayOrder - r.displayOrder);
-        savePrograms(next);
-        return next;
-      });
-      return;
-    }
+    // Errors (including "not found" for a program deleted elsewhere) propagate to the caller;
+    // silently re-creating the program would resurrect deleted entries or create duplicates.
+    const updated = await updateProgramRecord(id, toProgramMutationInput(merged));
 
     setPrograms((prev) => {
       const next = prev
