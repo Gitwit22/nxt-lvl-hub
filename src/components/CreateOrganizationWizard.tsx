@@ -370,7 +370,7 @@ export function CreateOrganizationWizard({
                 <input
                   ref={logoInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/png,image/jpeg,image/gif,image/webp"
                   className="hidden"
                   onChange={(event) => {
                     void uploadAsset(event.target.files?.[0], "logoUrl");
@@ -395,7 +395,7 @@ export function CreateOrganizationWizard({
                 <input
                   ref={bannerInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/png,image/jpeg,image/gif,image/webp"
                   className="hidden"
                   onChange={(event) => {
                     void uploadAsset(event.target.files?.[0], "bannerUrl");

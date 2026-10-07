@@ -183,7 +183,8 @@ export class AuthUserRepository {
       }),
     }));
 
-    return updated;
+    // Assigned inside the callback; TS narrows the `let` to null without this annotation.
+    return updated as AuthUserRecord | null;
   }
 }
 

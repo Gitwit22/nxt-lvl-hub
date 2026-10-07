@@ -21,6 +21,7 @@
     "typecheck:server": "tsc -p tsconfig.backend.json"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1147.0",
     "@hookform/resolvers": "^3.10.0",
     "@prisma/client": "^6.19.3",
     "@radix-ui/react-accordion": "^1.2.11",

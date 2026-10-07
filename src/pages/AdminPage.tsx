@@ -498,7 +498,7 @@ function ProgramManagerTab() {
                     ref={logoFileInputRef}
                     id="logo-upload"
                     type="file"
-                    accept="image/*"
+                    accept="image/png,image/jpeg,image/gif,image/webp"
                     className="hidden"
                     onChange={(event) => void handleLogoUpload(event.target.files?.[0])}
                     disabled={isUploadingLogo}
@@ -1582,7 +1582,7 @@ function BrandingPanel({ org, onSave }: { org: Organization; onSave: (updates: P
               <Upload className="mr-1.5 h-3.5 w-3.5" /> Upload
               <input
                 type="file"
-                accept="image/*"
+                accept="image/png,image/jpeg,image/gif,image/webp"
                 className="hidden"
                 onChange={(event) => {
                   void handleAssetUpload(event.target.files?.[0], "banner");
@@ -1603,7 +1603,7 @@ function BrandingPanel({ org, onSave }: { org: Organization; onSave: (updates: P
               <Upload className="mr-1.5 h-3.5 w-3.5" /> Upload
               <input
                 type="file"
-                accept="image/*"
+                accept="image/png,image/jpeg,image/gif,image/webp"
                 className="hidden"
                 onChange={(event) => {
                   void handleAssetUpload(event.target.files?.[0], "background");

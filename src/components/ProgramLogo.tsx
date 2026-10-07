@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -18,10 +19,13 @@ function resolveProgramColor(color?: string) {
 }
 
 export function ProgramLogo({ name, logoUrl, accentColor, className, textClassName }: ProgramLogoProps) {
-  if (logoUrl) {
+  // Stored URLs can go dead (e.g. files lost from a host's ephemeral disk); fall back to the initial instead of a broken image.
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+
+  if (logoUrl && failedUrl !== logoUrl) {
     return (
       <div className={cn("rounded metal-raised overflow-hidden shrink-0", className)}>
-        <img src={logoUrl} alt={`${name} logo`} className="h-full w-full object-cover" />
+        <img src={logoUrl} alt={`${name} logo`} className="h-full w-full object-cover" onError={() => setFailedUrl(logoUrl)} />
       </div>
     );
   }

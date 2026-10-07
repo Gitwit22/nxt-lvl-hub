@@ -17,7 +17,20 @@ export const env = {
   jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
   platformSetupToken: process.env.PLATFORM_SETUP_TOKEN || "",
   platformLaunchSecret: process.env.PLATFORM_LAUNCH_TOKEN_SECRET || "dev-platform-launch-secret",
+  r2: {
+    accountId: (process.env.R2_ACCOUNT_ID || "").trim(),
+    accessKeyId: (process.env.R2_ACCESS_KEY_ID || "").trim(),
+    secretAccessKey: (process.env.R2_SECRET_ACCESS_KEY || "").trim(),
+    bucket: (process.env.R2_BUCKET || "").trim(),
+    // Public origin serving the bucket (custom domain or r2.dev URL), e.g. https://cdn.nltops.com
+    publicBaseUrl: (process.env.R2_PUBLIC_BASE_URL || "").trim().replace(/\/+$/, ""),
+  },
 };
+
+export function isR2Configured() {
+  const { accountId, accessKeyId, secretAccessKey, bucket, publicBaseUrl } = env.r2;
+  return Boolean(accountId && accessKeyId && secretAccessKey && bucket && publicBaseUrl);
+}
 
 export function getAllowedOrigins() {
   if (env.corsOrigin.trim() === "*") {

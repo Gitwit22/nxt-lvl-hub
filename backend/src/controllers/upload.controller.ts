@@ -8,19 +8,16 @@ export async function uploadLogo(request: Request, response: Response) {
     throw new AppError("Logo file is required.", 400);
   }
 
-  const logoUrl = uploadService.buildLogoUrl(
-    {
-      protocol: request.protocol,
-      host: request.get("host") || "localhost",
-    },
-    request.file.filename,
-  );
+  const stored = await uploadService.storeLogo(request.file, {
+    protocol: request.protocol,
+    host: request.get("host") || "localhost",
+  });
 
   return sendSuccess(
     response,
     {
-      fileName: request.file.filename,
-      logoUrl,
+      fileName: stored.fileName,
+      logoUrl: stored.logoUrl,
     },
     "Logo uploaded.",
     201,

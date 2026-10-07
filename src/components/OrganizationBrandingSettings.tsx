@@ -160,7 +160,7 @@ export function OrganizationBrandingSettings({ org, onSave }: OrganizationBrandi
               <Upload className="mr-1.5 h-3.5 w-3.5" /> Upload
               <input
                 type="file"
-                accept="image/*"
+                accept="image/png,image/jpeg,image/gif,image/webp"
                 className="hidden"
                 onChange={(event) => {
                   void handleLogoUpload(event.target.files?.[0]);
@@ -180,7 +180,7 @@ export function OrganizationBrandingSettings({ org, onSave }: OrganizationBrandi
               <Upload className="mr-1.5 h-3.5 w-3.5" /> Upload
               <input
                 type="file"
-                accept="image/*"
+                accept="image/png,image/jpeg,image/gif,image/webp"
                 className="hidden"
                 onChange={(event) => {
                   void handleBannerUpload(event.target.files?.[0]);
